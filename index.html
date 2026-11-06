@@ -330,6 +330,35 @@ main{max-width:1760px}
 @media (min-width:1900px){.homegrid{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr)}}
 </style>
 <style id="themeStyle"></style>
+<style id="mobileFix">
+/* ---- 모바일 화면 맞춤 ---- */
+@media (max-width:980px) and (min-width:761px){
+  .board{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media (max-width:760px){
+  /* 내용이 짧은 화면에서 위쪽 바가 늘어나지 않도록 */
+  .app{grid-template-rows:auto 1fr;min-height:100vh;min-height:100dvh}
+  /* 위쪽 바: 제목 한 줄 + 메뉴 4칸 격자 (전체 메뉴가 한눈에 보이게) */
+  .rail{position:relative;top:auto;flex-direction:column;align-items:stretch;gap:8px;padding-block:calc(10px + env(safe-area-inset-top,0px)) 8px;overflow:visible}
+  .rail .mark{min-height:30px}
+  .nav{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;width:100%}
+  .nav a{position:relative;flex-direction:column;justify-content:center;gap:3px;padding:7px 2px;font-size:11.5px;line-height:1.2;white-space:normal;text-align:center;word-break:keep-all;min-height:48px}
+  .nav a .ic{width:18px;height:18px;flex:none}
+  .nav .cnt{display:inline-block;position:absolute;top:3px;left:calc(50% + 6px);min-width:16px;height:16px;line-height:16px;padding:0 4px;border-radius:99px;font-size:10px;background:var(--accent);color:#fff}
+  /* 입력칸을 누를 때 아이폰이 화면을 확대하지 않도록 */
+  input,select,textarea{font-size:16px!important}
+  /* 업무 보드: 상태별 칸을 옆으로 밀어서 넘기기 */
+  .board{grid-template-columns:none!important;grid-auto-flow:column;grid-auto-columns:minmax(250px,84%);overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;margin-inline:-16px;padding:0 16px 8px;scroll-padding-inline:16px}
+  .board>.col{scroll-snap-align:start}
+  /* 표나 긴 내용이 화면 밖으로 나가지 않게 */
+  main{overflow-wrap:anywhere}
+  main table{display:block;max-width:100%;overflow-x:auto}
+  dialog{width:calc(100vw - 20px);max-height:calc(100dvh - 24px)}
+  dialog form{padding:16px}
+  button,.btn,select{min-height:38px}
+}
+</style>
+
 
 <div class="app" id="app">
   <aside class="rail">
