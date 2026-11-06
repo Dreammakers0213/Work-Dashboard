@@ -374,59 +374,15 @@ main{max-width:1760px}
 <dialog id="dlg"><form id="dlgForm" method="dialog"></form></dialog>
 
 <script>
-/* GitHub Pages용: claude.ai 저장소 대신 브라우저(localStorage)에 저장 */
-(function(){
-  if (window.claude && window.claude.use) return;
-  var KEY = "work-dashboard-db-v1";
-  var mem = {};
-  function load(){ try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e){ return mem; } }
-  function save(d){ mem = d; try { localStorage.setItem(KEY, JSON.stringify(d)); } catch(e){} }
-  var subs = {};
-  function snap(col){
-    var d = load()[col] || {};
-    return { docs: Object.keys(d).map(function(id){ return { id: id, data: function(){ return JSON.parse(JSON.stringify(d[id])); } }; }) };
-  }
-  function emit(col){ (subs[col] || []).forEach(function(cb){ try { cb(snap(col)); } catch(e){ console.error(e); } }); }
-  function docRef(col, id){
-    function mut(fn){ var d = load(); d[col] = d[col] || {}; fn(d[col]); save(d); setTimeout(function(){ emit(col); }, 0); return Promise.resolve(); }
-    return {
-      id: id,
-      set: function(v){ return mut(function(c){ c[id] = JSON.parse(JSON.stringify(v)); }); },
-      update: function(v){
-        var d = load(); if (!d[col] || !d[col][id]) return Promise.reject(new Error("문서가 없습니다: " + col + "/" + id));
-        return mut(function(c){ Object.assign(c[id], JSON.parse(JSON.stringify(v))); });
-      },
-      delete: function(){ return mut(function(c){ delete c[id]; }); },
-      get: function(){ var c = load()[col] || {}; var has = id in c;
-        return Promise.resolve({ id: id, exists: has, data: function(){ return has ? JSON.parse(JSON.stringify(c[id])) : undefined; } }); }
-    };
-  }
-  var db = {
-    collection: function(col){
-      return {
-        doc: function(id){ return docRef(col, id); },
-        onSnapshot: function(cb){ (subs[col] = subs[col] || []).push(cb); setTimeout(function(){ cb(snap(col)); }, 0);
-          return function(){ subs[col] = (subs[col] || []).filter(function(f){ return f !== cb; }); }; }
-      };
-    },
-    doc: function(path){ var i = path.indexOf("/"); return docRef(path.slice(0, i), path.slice(i + 1)); }
-  };
-  /* 다른 탭에서 바꾼 내용도 바로 반영 */
-  window.addEventListener("storage", function(e){ if (e.key === KEY) Object.keys(subs).forEach(emit); });
-  var downloads = {
-    save: function(o){
-      var blob = new Blob([o.data], { type: "application/json" });
-      var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = o.filename || "backup.json";
-      document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
-      return Promise.resolve();
-    }
-  };
-  window.claude = { use: function(name){ return Promise.resolve(name === "db" ? db : name === "downloads" ? downloads : null); } };
-})();
+/* Firebase 설정값: Firebase 콘솔 → 프로젝트 설정 → 내 앱(웹)에서 복사해 붙여 넣습니다. 비워 두면 이 브라우저에만 저장합니다. */
+window.FIREBASE_CONFIG = {};
 </script>
-<script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<script type="text/plain" id="appMain">
 (function(){
-const ME="박예영";
+const ME=(window.__WD_USER&&window.__WD_USER.name)||"사용자";
 const WD=["일","월","화","수","목","금","토"];
 const COLS=["projects","tasks","posts","reports","settings","rweeks"];
 const LOGKINDS=["업무일지","회의록","메모"];
@@ -511,7 +467,7 @@ function stOf(k){return STS().find(s=>s.key===k)||{key:k,label:k||"미정",kind:
 function TAGS(){return (setting("ui").data||{}).tags||[]}
 function PANELS(){return Object.assign({},DEF_PANELS,(setting("ui").data||{}).panels||{})}
 function REP(){return Object.assign({},DEF_REPORT,(setting("ui").data||{}).report||{})}
-const DEF_PROFILE={name:ME,position:"선임매니저",org:"드림메이커스 · 사업2팀",userId:"",phone:"",email:"",avatar:"account",icon:"star",photo:""};
+const DEF_PROFILE={name:ME,position:"",org:"드림메이커스",userId:"",phone:"",email:"",avatar:"account",icon:"star",photo:""};
 function PROFILE(){const p=Object.assign({},DEF_PROFILE,setting("profile").data||{});if(!p.name)p.name=ME;return p}
 async function saveProfile(patch){const cur=clone(setting("profile").data||{});Object.assign(cur,patch);try{await S.db.doc("settings/profile").set({data:cur})}catch(e){fail(e)}}
 function avatarSrc(){const p=PROFILE();if(p.avatar==="account"&&S.acct&&S.acct.avatarUrl)return S.acct.avatarUrl;if(p.avatar==="upload"&&p.photo)return p.photo;return ""}
@@ -851,7 +807,7 @@ function sBackup(){
   return `<div class="setgrid"><section class="panel"><header><h2>백업 파일 내려받기</h2></header>
     <p style="margin:0 0 10px">사업, 업무, 업무일지, 보고서, 설정을 JSON 파일 하나로 저장합니다. 큰 변경 전이나 한 달에 한 번 받아 두세요.</p>
     <p class="muted" style="font-size:12.5px;margin:0 0 10px">현재: ${esc(counts)}</p>
-    ${S.dl?`<button class="btn pri" data-act="backup">백업 파일 받기</button>`:`<div class="banner">이 화면에서는 파일 저장을 쓸 수 없습니다. claude.ai에서 열어 주세요.</div>`}</section>
+    ${S.dl?`<button class="btn pri" data-act="backup">백업 파일 받기</button>`:`<div class="banner">이 화면에서는 파일 저장을 쓸 수 없습니다.</div>`}</section>
   <section class="panel"><header><h2>백업에서 복원</h2></header>
     <p style="margin:0 0 10px">백업 파일의 내용을 다시 넣습니다. 같은 항목은 백업 내용으로 덮어쓰고, 백업 이후 새로 만든 항목은 그대로 둡니다.</p>
     <input type="file" id="restoreFile" accept="application/json,.json" aria-label="백업 파일 선택">
@@ -887,7 +843,7 @@ function vMe(){
    <section class="panel"><header><h2>프로필 사진</h2></header>
     <div style="display:flex;gap:16px;align-items:center;margin-bottom:14px"><span class="bigav" id="meAv"></span><div style="min-width:0"><b style="font-size:17px">${esc(p.name)}</b><br><span class="muted">${esc([p.org,p.position].filter(Boolean).join(" · "))}</span>${p.userId?`<br><span class="muted" style="font-size:12.5px">@${esc(p.userId)}</span>`:""}</div></div>
     <div class="seg2" style="flex-wrap:wrap">${opts.map(([k,l])=>`<button type="button" data-prof="avatar" data-v="${k}" class="${p.avatar===k?"on":""}">${l}</button>`).join("")}</div>
-    ${p.avatar==="account"?`<p class="muted" style="font-size:12.5px;margin:10px 0 0">${S.acct?"claude.ai에 로그인한 계정의 사진을 씁니다. 사진이 없으면 기본 아이콘이 나옵니다.":"계정 정보를 불러오지 못했습니다. 페이지를 열 때 계정 정보 허용을 눌러 주세요."}</p>`:""}
+    ${p.avatar==="account"?`<p class="muted" style="font-size:12.5px;margin:10px 0 0">${S.acct?"계정에는 사진이 없어 기본 아이콘이 나옵니다. '직접 올린 사진'이나 '아이콘'을 골라 보세요.":"계정 정보를 불러오지 못했습니다."}</p>`:""}
     ${p.avatar==="upload"?`<div class="fld" style="margin-top:12px"><label for="photoFile">사진 선택</label><input type="file" id="photoFile" accept="image/*">${p.photoOrig?`<button type="button" class="btn sm" data-act="recrop" style="align-self:flex-start;margin-top:6px">지금 사진 영역 다시 조절</button>`:""}<small class="muted" style="font-size:12.5px">사진을 고르면 보일 영역을 직접 맞출 수 있습니다.</small></div>`:""}
     ${p.avatar==="icon"?`<div class="icgrid" style="margin-top:12px">${Object.keys(ICONS).map(k=>`<button type="button" data-prof="icon" data-v="${k}" class="${p.icon===k?"on":""}" aria-label="${k}">${ic(k)}</button>`).join("")}</div>`:""}
    </section>
@@ -897,7 +853,7 @@ function vMe(){
     <div class="two">${f("userId","아이디","예: yeyoung72")}${f("phone","연락처","예: 070-0000-0000","tel")}</div>
     ${f("email","이메일","예: name@dreammakers.or.kr","email")}</div>
     <p class="muted" style="font-size:12.5px;margin:4px 0 0">이름과 직위는 사이드바와 '오늘' 화면 인사말에 쓰입니다. 칸을 벗어나면 바로 저장됩니다.</p>
-    <div class="opt" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px"><b>로그인 계정</b><span>${S.acct?esc(S.acct.name||"이름 정보 없음"):"불러오지 못함"}</span><small>로그인에 쓰는 구글 계정과 비밀번호는 claude.ai 설정에서 관리합니다.</small></div>
+    <div class="opt" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px"><b>로그인 계정</b><span>${S.acct?esc(S.acct.name||"이름 정보 없음"):"불러오지 못함"}</span><small>로그인 이름은 바꿀 수 없습니다. 위 '이름' 칸은 화면에 보이는 이름만 바꿉니다.</small><div style="display:flex;gap:6px;margin-top:8px"><button type="button" class="btn sm" data-auth="pw">비밀번호 변경</button><button type="button" class="btn sm" data-auth="logout">로그아웃</button></div></div>
    </section></div>`;
 }
 function loadImg(src){return new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=src})}
@@ -1095,16 +1051,269 @@ document.addEventListener("submit",async e=>{
 
 /* ---- 시작 ---- */
 route();
-const to=setTimeout(()=>{if(!S.db){S.err="저장소에 연결하지 못했습니다. claude.ai에 로그인한 상태로 페이지를 다시 열어 주세요.";render()}},10000);
+const to=setTimeout(()=>{if(!S.db){S.err="저장소에 연결하지 못했습니다. 인터넷 연결을 확인하고 페이지를 다시 열어 주세요.";render()}},10000);
 (async()=>{
   try{
     const [db,dl,user]=await Promise.all([window.claude.use("db"),window.claude.use("downloads"),window.claude.use("user")]);
     if(user){try{const me=await user.me();S.acct={name:me.name||"",avatarUrl:me.avatarUrl}}catch(e){}}
-    if(!db){clearTimeout(to);S.err="저장소를 사용할 수 없습니다. claude.ai에 로그인한 상태로 열어 주세요.";render();return}
+    if(!db){clearTimeout(to);S.err="저장소를 사용할 수 없습니다. 다시 로그인해 주세요.";render();return}
     S.db=db;S.dl=dl;
     COLS.forEach(col=>db.collection(col).onSnapshot(snap=>{clearTimeout(to);S[col]=snap.docs.map(d=>({id:d.id,...d.data()}));S.loaded[col]=1;render()},()=>{clearTimeout(to);S.loaded[col]=1;toast("일부 데이터를 불러오지 못했습니다.");render()}));
   }catch(e){clearTimeout(to);S.err="저장소 연결 중 문제가 생겼습니다.";render()}
 })();
+})();
+</script>
+<script>
+/* ---- 로그인 + Firebase 저장소 연결 ----
+   각 사용자의 데이터는 users/{uid}/... 아래에 따로 저장됩니다.
+   FIREBASE_CONFIG 가 비어 있으면 예전처럼 이 브라우저에만 저장(로그인 없음)합니다. */
+(function(){
+  var MAX_USERS = 10;
+  var MAX_NAME = 10;
+  var DOMAIN = "@work-dashboard.app";
+  var cfg = window.FIREBASE_CONFIG || {};
+  var useFirebase = !!(cfg.apiKey && cfg.projectId && window.firebase);
+
+  function startApp(){
+    var src = document.getElementById("appMain");
+    if (!src || src.dataset.started) return;
+    src.dataset.started = "1";
+    var s = document.createElement("script");
+    s.textContent = src.textContent;
+    document.body.appendChild(s);
+  }
+  function downloadsApi(){
+    return { save: function(o){
+      var blob = new Blob([o.data], { type: "application/json" });
+      var a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = o.filename || "backup.json";
+      document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      return Promise.resolve();
+    } };
+  }
+
+  /* ---------- 설정이 없을 때: 이 브라우저에만 저장 ---------- */
+  function localDb(){
+    var KEY = "work-dashboard-db-v1", mem = {}, subs = {};
+    function load(){ try { return JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch(e){ return mem; } }
+    function save(d){ mem = d; try { localStorage.setItem(KEY, JSON.stringify(d)); } catch(e){} }
+    function snap(col){ var d = load()[col] || {}; return { docs: Object.keys(d).map(function(id){ return { id: id, data: function(){ return JSON.parse(JSON.stringify(d[id])); } }; }) }; }
+    function emit(col){ (subs[col] || []).forEach(function(cb){ try { cb(snap(col)); } catch(e){ console.error(e); } }); }
+    function ref(col, id){
+      function mut(fn){ var d = load(); d[col] = d[col] || {}; fn(d[col]); save(d); setTimeout(function(){ emit(col); }, 0); return Promise.resolve(); }
+      return { id: id,
+        set: function(v){ return mut(function(c){ c[id] = JSON.parse(JSON.stringify(v)); }); },
+        update: function(v){ var d = load(); if (!d[col] || !d[col][id]) return Promise.reject(new Error("문서가 없습니다")); return mut(function(c){ Object.assign(c[id], JSON.parse(JSON.stringify(v))); }); },
+        delete: function(){ return mut(function(c){ delete c[id]; }); } };
+    }
+    window.addEventListener("storage", function(e){ if (e.key === KEY) Object.keys(subs).forEach(emit); });
+    return {
+      collection: function(col){ return { doc: function(id){ return ref(col, id); },
+        onSnapshot: function(cb){ (subs[col] = subs[col] || []).push(cb); setTimeout(function(){ cb(snap(col)); }, 0); return function(){}; } }; },
+      doc: function(p){ var i = p.indexOf("/"); return ref(p.slice(0, i), p.slice(i + 1)); }
+    };
+  }
+
+  if (!useFirebase) {
+    var ldb = localDb();
+    window.claude = { use: function(n){ return Promise.resolve(n === "db" ? ldb : n === "downloads" ? downloadsApi() : null); } };
+    startApp();
+    return;
+  }
+
+  /* ---------- Firebase ---------- */
+  firebase.initializeApp(cfg);
+  var auth = firebase.auth();
+  var fs = firebase.firestore();
+  try { fs.settings({ ignoreUndefinedProperties: true, merge: true }); } catch(e){}
+  try { fs.enablePersistence({ synchronizeTabs: true }).catch(function(){}); } catch(e){}
+  var REG = fs.collection("meta").doc("registry");
+
+  function normName(n){ return String(n || "").normalize("NFC").trim().replace(/\s+/g, " "); }
+  function nameToEmail(n){
+    var bytes = new TextEncoder().encode(normName(n).toLowerCase()), hex = "";
+    bytes.forEach(function(b){ hex += b.toString(16).padStart(2, "0"); });
+    return "u" + hex + DOMAIN;
+  }
+  function userDb(uid){
+    var root = fs.collection("users").doc(uid);
+    return {
+      collection: function(c){ var col = root.collection(c); return { doc: function(id){ return col.doc(id); }, onSnapshot: function(a, b){ return col.onSnapshot(a, b); } }; },
+      doc: function(p){ var i = p.indexOf("/"); return root.collection(p.slice(0, i)).doc(p.slice(i + 1)); }
+    };
+  }
+  function errMsg(e){
+    var c = (e && e.code) || "";
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(c)) return "이름 또는 비밀번호가 맞지 않습니다.";
+    if (/email-already-in-use/.test(c)) return "이미 같은 이름의 계정이 있습니다. 로그인하거나 다른 이름을 써 주세요.";
+    if (/weak-password/.test(c)) return "비밀번호는 6자 이상이어야 합니다.";
+    if (/too-many-requests/.test(c)) return "시도가 너무 많습니다. 잠시 후 다시 해 주세요.";
+    if (/network-request-failed|unavailable/.test(c)) return "인터넷 연결을 확인해 주세요.";
+    if (/operation-not-allowed/.test(c)) return "Firebase에서 '이메일/비밀번호' 로그인이 꺼져 있습니다. 관리자에게 알려 주세요.";
+    if (/permission-denied/.test(c)) return "권한이 없습니다. 관리자에게 Firestore 규칙 설정을 확인해 달라고 해 주세요.";
+    if (e && e.message === "LIMIT") return "정원(" + MAX_USERS + "명)이 다 찼습니다. 관리자에게 문의해 주세요.";
+    if (e && e.message === "NOT_MEMBER") return "등록이 해제된 계정입니다. 관리자에게 문의해 주세요.";
+    return "문제가 생겼습니다. 다시 시도해 주세요." + (c ? " (" + c + ")" : "");
+  }
+
+  /* ---------- 로그인 화면 ---------- */
+  var css = document.createElement("style");
+  css.textContent = [
+    "#authGate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:20px;background:var(--bg,#f3f5f6);overflow:auto}",
+    "#authGate[hidden]{display:none}",
+    "#authGate .box{width:min(380px,100%);background:var(--surface,#fff);border:1px solid var(--line,#d5dde1);border-radius:12px;padding:26px 24px;box-shadow:0 10px 30px rgba(0,0,0,.06)}",
+    "#authGate h1{margin:0 0 4px;font-size:22px;color:var(--ink,#1c2b33)}",
+    "#authGate .sub{margin:0 0 18px;color:var(--muted,#5d6f78);font-size:13.5px}",
+    "#authGate .tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--sunk,#e9eef0);border-radius:8px;padding:3px;margin-bottom:16px}",
+    "#authGate .tabs button{border:0;background:transparent;padding:9px;border-radius:6px;font:inherit;font-weight:600;color:var(--muted,#5d6f78);cursor:pointer}",
+    "#authGate .tabs button.on{background:var(--surface,#fff);color:var(--ink,#1c2b33);box-shadow:0 1px 3px rgba(0,0,0,.08)}",
+    "#authGate form{display:flex;flex-direction:column;gap:12px}",
+    "#authGate label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted,#5d6f78)}",
+    "#authGate input{font:inherit;font-size:16px;padding:11px 12px;border:1px solid var(--line,#d5dde1);border-radius:8px;background:var(--surface,#fff);color:var(--ink,#1c2b33)}",
+    "#authGate input:focus{outline:2px solid var(--brand,#1f4e5f);outline-offset:-1px}",
+    "#authGate .go{margin-top:4px;border:0;border-radius:8px;padding:12px;font:inherit;font-weight:700;background:var(--brand,#1f4e5f);color:var(--brand-ink,#fff);cursor:pointer}",
+    "#authGate .go:disabled{opacity:.6;cursor:wait}",
+    "#authGate .msg{min-height:18px;font-size:13px;color:var(--bad,#b4372f);margin:0}",
+    "#authGate .msg.ok{color:var(--ok,#2f7d4f)}",
+    "#authGate .hint{font-size:12px;color:var(--faint,#8a9aa2);margin:2px 0 0}",
+    "#authGate .cancel{border:0;background:none;color:var(--muted,#5d6f78);font:inherit;font-size:13px;cursor:pointer;padding:6px}",
+    ".acctBar{margin-left:auto;display:flex;gap:6px;align-items:center}",
+    ".acctBar button{border:1px solid color-mix(in srgb,var(--brand-ink,#fff) 35%,transparent);background:transparent;color:inherit;border-radius:6px;padding:4px 9px;font:inherit;font-size:12px;cursor:pointer;opacity:.9;white-space:nowrap}",
+    ".acctBar button:hover{opacity:1;background:color-mix(in srgb,var(--brand-ink,#fff) 12%,transparent)}",
+    "@media (min-width:761px){.rail .acctBar{order:9;margin:0}}",
+    "@media (max-width:760px){.rail .mark{display:flex;align-items:center;gap:8px}.rail .mark .acctBar{flex:none;display:flex;flex-direction:row;gap:6px}.acctBar button{min-height:0!important;padding:5px 9px}}"
+  ].join("\n");
+  document.head.appendChild(css);
+
+  var gate = document.createElement("div");
+  gate.id = "authGate";
+  document.body.appendChild(gate);
+  var mode = "login";
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]; }); }
+  function drawGate(msg, ok){
+    var signup = mode === "signup", pw = mode === "pw";
+    gate.hidden = false;
+    gate.innerHTML = '<div class="box">' +
+      '<h1>' + (pw ? "비밀번호 변경" : "업무 대시보드") + '</h1>' +
+      '<p class="sub">' + (pw ? "지금 비밀번호를 확인한 뒤 새 비밀번호로 바꿉니다." : signup ? "이름과 비밀번호만 정하면 바로 쓸 수 있어요. 최대 " + MAX_USERS + "명까지 만들 수 있습니다." : "이름과 비밀번호로 로그인하세요.") + '</p>' +
+      (pw ? "" : '<div class="tabs"><button type="button" data-m="login" class="' + (signup ? "" : "on") + '">로그인</button><button type="button" data-m="signup" class="' + (signup ? "on" : "") + '">계정 만들기</button></div>') +
+      '<form id="authForm" novalidate>' +
+      (pw ? '<label>지금 비밀번호<input id="aCur" type="password" autocomplete="current-password" required></label>' +
+            '<label>새 비밀번호<input id="aPw" type="password" autocomplete="new-password" minlength="6" required></label>' +
+            '<label>새 비밀번호 확인<input id="aPw2" type="password" autocomplete="new-password" required></label>'
+          : '<label>이름<input id="aName" autocomplete="username" maxlength="' + MAX_NAME + '" required placeholder="예: 홍길동"></label>' +
+            '<label>비밀번호<input id="aPw" type="password" autocomplete="' + (signup ? "new-password" : "current-password") + '" required></label>' +
+            (signup ? '<label>비밀번호 확인<input id="aPw2" type="password" autocomplete="new-password" required></label><p class="hint">비밀번호는 6자 이상. 잊어버리면 찾을 수 없으니 꼭 기억해 두세요.</p>' : "")) +
+      '<p class="msg' + (ok ? " ok" : "") + '" id="aMsg">' + (msg ? esc(msg) : "") + '</p>' +
+      '<button class="go" id="aGo">' + (pw ? "변경하기" : signup ? "계정 만들고 시작하기" : "로그인") + '</button>' +
+      (pw ? '<button type="button" class="cancel" data-m="cancel">취소</button>' : "") +
+      '</form></div>';
+    var f = gate.querySelector(pw ? "#aCur" : "#aName"); if (f) f.focus();
+  }
+  function setMsg(t, ok){ var m = document.getElementById("aMsg"); if (m){ m.textContent = t || ""; m.className = "msg" + (ok ? " ok" : ""); } }
+  function busy(b){ var g = document.getElementById("aGo"); if (g) g.disabled = b; }
+
+  gate.addEventListener("click", function(e){
+    var b = e.target.closest("[data-m]"); if (!b) return;
+    if (b.dataset.m === "cancel"){ gate.hidden = true; mode = "login"; return; }
+    mode = b.dataset.m; drawGate();
+  });
+
+  gate.addEventListener("submit", async function(e){
+    e.preventDefault();
+    var pwEl = document.getElementById("aPw"), pw2El = document.getElementById("aPw2");
+    var pw = pwEl ? pwEl.value : "";
+    if (mode === "pw"){
+      var cur = document.getElementById("aCur").value;
+      if (pw.length < 6) return setMsg("새 비밀번호는 6자 이상이어야 합니다.");
+      if (pw !== pw2El.value) return setMsg("새 비밀번호가 서로 다릅니다.");
+      busy(true);
+      try {
+        var u = auth.currentUser;
+        await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, cur));
+        await u.updatePassword(pw);
+        setMsg("비밀번호를 바꿨습니다.", true);
+        setTimeout(function(){ gate.hidden = true; mode = "login"; }, 900);
+      } catch(err){ setMsg(errMsg(err)); }
+      busy(false); return;
+    }
+    var name = normName(document.getElementById("aName").value);
+    if (!name) return setMsg("이름을 입력해 주세요.");
+    if (name.length > MAX_NAME) return setMsg("이름은 " + MAX_NAME + "자 이내로 입력해 주세요.");
+    if (!pw) return setMsg("비밀번호를 입력해 주세요.");
+    busy(true); setMsg("");
+    try {
+      if (mode === "signup"){
+        if (pw.length < 6) { busy(false); return setMsg("비밀번호는 6자 이상이어야 합니다."); }
+        if (pw !== pw2El.value) { busy(false); return setMsg("비밀번호가 서로 다릅니다."); }
+        signingUp = true;
+        var cred = await auth.createUserWithEmailAndPassword(nameToEmail(name), pw);
+        var uid = cred.user.uid;
+        try {
+          await fs.runTransaction(async function(tx){
+            var snap = await tx.get(REG);
+            var members = (snap.exists && snap.data().members) || {};
+            if (!members[uid] && Object.keys(members).length >= MAX_USERS) throw new Error("LIMIT");
+            if (snap.exists) tx.update(REG, new firebase.firestore.FieldPath("members", uid), name);
+            else tx.set(REG, { members: (function(){ var m = {}; m[uid] = name; return m; })() });
+          });
+        } catch(err){
+          try { await cred.user.delete(); } catch(_){ await auth.signOut(); }
+          signingUp = false; throw err;
+        }
+        try { await cred.user.updateProfile({ displayName: name }); } catch(_){}
+        try { await userDb(uid).doc("settings/profile").set({ data: { name: name } }); } catch(_){}
+        signingUp = false;
+        await enter(cred.user);
+      } else {
+        await auth.signInWithEmailAndPassword(nameToEmail(name), pw);
+      }
+    } catch(err){ signingUp = false; setMsg(errMsg(err)); busy(false); }
+  });
+
+  var started = false, signingUp = false;
+  async function enter(user){
+    if (started) return;
+    if (!auth.currentUser || auth.currentUser.uid !== user.uid) return; /* 이미 지워졌거나 바뀐 계정 */
+    var name = user.displayName || "";
+    try {
+      var reg = await REG.get();
+      var members = (reg.exists && reg.data().members) || {};
+      if (!members[user.uid]) throw new Error("NOT_MEMBER");
+      name = members[user.uid] || name;
+    } catch(err){
+      if (!auth.currentUser || auth.currentUser.uid !== user.uid) return;
+      formShown = true; await auth.signOut(); mode = "login"; drawGate(errMsg(err)); return;
+    }
+    started = true;
+    window.__WD_USER = { uid: user.uid, name: name };
+    var db = userDb(user.uid);
+    var acct = { me: function(){ return Promise.resolve({ name: name, avatarUrl: "" }); } };
+    window.claude = { use: function(n){ return Promise.resolve(n === "db" ? db : n === "downloads" ? downloadsApi() : n === "user" ? acct : null); } };
+    gate.hidden = true;
+    addAcctBar(name);
+    startApp();
+  }
+  function addAcctBar(name){
+    var mark = document.querySelector(".rail .mark"); if (!mark || document.querySelector(".acctBar")) return;
+    var bar = document.createElement("div"); bar.className = "acctBar";
+    bar.innerHTML = '<button type="button" data-auth="pw" title="' + esc(name) + ' 계정">비밀번호</button><button type="button" data-auth="logout">로그아웃</button>';
+    if (window.matchMedia("(max-width:760px)").matches) mark.appendChild(bar);
+    else document.querySelector(".rail").appendChild(bar);
+  }
+  document.addEventListener("click", function(e){
+    var b = e.target.closest("[data-auth]"); if (!b) return;
+    if (b.dataset.auth === "logout"){ auth.signOut().then(function(){ location.hash = ""; location.reload(); }); }
+    if (b.dataset.auth === "pw"){ mode = "pw"; drawGate(); }
+  });
+
+  gate.hidden = false;
+  gate.innerHTML = '<div class="box"><h1>업무 대시보드</h1><p class="sub" style="margin:0">로그인 상태를 확인하는 중…</p></div>';
+  var formShown = false;
+  auth.onAuthStateChanged(function(user){
+    if (user){ if (!signingUp) enter(user); }
+    else if (!started && !formShown){ formShown = true; mode = "login"; drawGate(); }
+  });
 })();
 </script>
 

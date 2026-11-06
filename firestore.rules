@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function member() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/meta/registry)
+        && request.auth.uid in get(/databases/$(database)/documents/meta/registry).data.members;
+    }
+    // 각자의 데이터: 본인만 읽고 쓸 수 있음
+    match /users/{uid}/{document=**} {
+      allow read, write: if member() && request.auth.uid == uid;
+    }
+    // 계정 명단 (최대 10명)
+    match /meta/registry {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.members.keys().hasOnly([request.auth.uid]);
+      allow update: if request.auth != null
+        && request.resource.data.members.size() <= 10
+        && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([request.auth.uid]);
+    }
+  }
+}
