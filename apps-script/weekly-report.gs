@@ -25,7 +25,7 @@ const DAYS_BACK = 70;      // 최근 몇 일치 주만 보낼지
 const FB_API_KEY = 'AIzaSyC60VvBo_njL-4Ak0GI4cg9qVaegUYealE';
 const FB_PROJECT = 'work-dashboard-48e63';
 const FB_DOMAIN = '@work-dashboard.app';
-const DASH_ORIGIN = 'https://dreammakers0213.github.io/';
+const DASH_ORIGIN = 'https://dreammakerswork.github.io/';
 
 /** 처음 한 번: 지금 보내고, 1시간마다 자동 실행 예약 */
 function setup() {
