@@ -328,6 +328,63 @@ main{max-width:1760px}
  .setgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
 }
 @media (min-width:1900px){.homegrid{grid-template-columns:minmax(0,1fr) minmax(0,1.6fr)}}
+/* 오늘 화면: 이번 주 보드 */
+.wkh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.wkh .muted{font-size:13px}
+.wklate{background:var(--bad-soft);border-radius:10px;padding:10px 14px;margin-bottom:12px}
+.wklate .grp{margin-top:0}
+.wklate .chk{min-height:0}
+.wklate .pill{justify-self:start}
+.wkscroll{overflow-x:auto}
+.wkgrid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:8px}
+.wkday{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:150px;min-width:0}
+.wkday.we,.wkday.past{background:var(--bg)}
+.wkday.today{border:2px solid var(--brand);background:color-mix(in srgb,var(--brand) 5%,var(--surface));padding:9px}
+.wkd{display:flex;align-items:baseline;gap:5px}
+.wkd b{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums}
+.wkd span{font-size:13px;color:var(--muted)}
+.wkd em{margin-left:auto;font-style:normal;font-size:11px;font-weight:700;color:var(--brand-ink);background:var(--brand);border-radius:6px;padding:1px 6px}
+.wkday.past .wkd b,.wkday.past .wkd span{color:var(--faint)}
+.wkit{display:flex;gap:7px;align-items:flex-start;background:color-mix(in srgb,var(--pc) 10%,var(--surface));border-radius:8px;padding:8px;cursor:pointer;min-width:0}
+.wkit .chk{width:17px;height:17px;min-height:0;flex:none;margin-top:1px}
+.upit .chk{min-height:0;flex:none}
+.wkit .b{display:flex;flex-direction:column;gap:2px;min-width:0}
+.wkit .tm{font-size:11.5px;font-weight:600;color:var(--pc)}
+.wkit .nm{font-size:13px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.wkit:hover .nm{color:var(--brand)}
+.wkit small{font-size:11.5px;color:var(--muted)}
+.wkit.done{opacity:.6}.wkit.done .nm{text-decoration:line-through}
+.wkrt{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:10px;font-size:13.5px}
+.wkrt>b{font-weight:600;margin-right:4px}
+.wkrt>.btn{margin-left:auto}
+.rtchip{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:99px;padding:5px 12px;cursor:pointer}
+.rtchip.on{background:var(--ok-soft);border-color:var(--ok);color:var(--ok);text-decoration:line-through}
+.home3{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;align-items:stretch}
+.upit{display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);cursor:pointer}
+.upit:first-child{border-top:0;padding-top:0}
+.upit .b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.upit .nm{font-weight:600;font-size:14px;line-height:1.45}
+.upit:hover .nm{color:var(--brand)}
+.upit small{font-size:12px;color:var(--muted)}
+.dbadge{width:46px;flex:none;text-align:center;background:var(--bg);border-radius:8px;padding:4px 0;display:flex;flex-direction:column;line-height:1.25}
+.dbadge b{font-size:17px}.dbadge small{font-size:11px;color:var(--muted)}
+.dbadge.none b{color:var(--faint)}
+.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.bcard{display:flex;flex-direction:column;gap:7px;border:1px solid var(--line);border-radius:10px;padding:14px;color:var(--ink);text-decoration:none;min-width:0}
+.bcard:hover{border-color:var(--brand)}
+.bcard b{font-weight:600}
+.bcard .pct{font-size:26px;font-weight:700;color:var(--brand);line-height:1;font-variant-numeric:tabular-nums}
+.bcard small{font-size:12px;color:var(--muted)}
+.lchips{display:flex;flex-wrap:wrap;gap:8px}
+.lchips a{font-size:13.5px;color:var(--ink);text-decoration:none;background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:8px 14px}
+.lchips a span{color:var(--faint);font-size:12px}
+.lchips a:hover{border-color:var(--brand);color:var(--brand)}
+@media (max-width:760px){
+ .wkgrid{grid-template-columns:minmax(0,1fr)}
+ .wkday{min-height:0}
+ .wkday.empty:not(.today){display:none}
+ .wkd b{font-size:15px}
+}
 </style>
 <style id="themeStyle"></style>
 <style id="mobileFix">
@@ -580,11 +637,29 @@ function vHome(){
   const routines=setting("routines").items||[];const rw=(S.rweeks.find(x=>x.id===ws)||{}).done||{};
   const links=(setting("links").items||[]).filter(l=>safeUrl(l.url));
   const biz=S.projects.filter(p=>p.kind!=="영역"&&p.status!=="종료");
-  const side=[
-   pn.sched?`<section class="panel"><header><h2>다가오는 일정</h2><a class="btn sm" href="#calendar">캘린더</a></header><div class="list">${sched.length?sched.map(t=>`<div class="titem" data-task="${esc(t.id)}" style="padding:6px 0"><b style="font-weight:600;font-size:13px;white-space:nowrap">${fmtMD(t.due)} ${esc(timeStr(t))}</b><span class="nm">${t.important?`<span class="star">★</span>`:""}${esc(t.title)}</span></div>`).join(""):`<div class="empty">3주 안에 시간이 정해진 일정이 없습니다.</div>`}</div></section>`:"",
-   pn.routines?`<section class="panel"><header><h2>이번 주 정기 업무</h2><span style="display:flex;gap:8px;align-items:center"><span class="muted" style="font-size:12.5px">${routines.filter(r=>rw[r]).length}/${routines.length}</span><button class="btn sm" data-act="editRoutines">편집</button></span></header><div>${routines.length?routines.map(r=>`<div class="rt ${rw[r]?"on":""}"><button type="button" class="chk ${rw[r]?"on":""}" data-routine="${esc(r)}" aria-label="${esc(r)} 완료 표시"></button><span>${esc(r)}</span></div>`).join(""):`<div class="empty">매주 반복하는 일을 편집에서 등록하세요.</div>`}</div></section>`:"",
-   pn.biz?`<section class="panel"><header><h2>담당 사업</h2><a class="btn sm" href="#projects">전체</a></header><div>${biz.length?biz.map(pCard).join(""):`<div class="empty">진행 중인 사업이 없습니다.</div>`}</div></section>`:"",
-   pn.links?`<section class="panel"><header><h2>바로가기</h2><button class="btn sm" data-act="editLinks">편집</button></header><div class="links">${links.length?links.map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener"><span>${esc(l.label)}</span><small>${esc((l.url.match(/\/\/([^/]+)/)||[])[1]||"")} ↗</small></a>`).join(""):`<div class="empty">자주 여는 문서 주소를 편집에서 등록하세요.</div>`}</div></section>`:""].join("");
+  const days=[0,1,2,3,4,5,6].map(i=>addDays(wkStart(0),i));
+  const wkAll=S.tasks.filter(t=>t.due&&t.due>=ws&&t.due<=we&&(isOpen(t)||isDone(t)));
+  const wkItem=t=>{const done=isDone(t),s=stOf(t.status),c=isLate(t)?"var(--c-red)":cvar(s.color);
+    return `<div class="wkit ${done?"done":""}" data-task="${esc(t.id)}" style="--pc:${c}"><button type="button" class="chk ${done?"on":""}" data-check="${esc(t.id)}" aria-label="${done?"완료 취소":"완료로 표시"}"></button>
+     <div class="b"><span class="tm">${t.time?esc(timeStr(t)):"마감"}</span><span class="nm">${t.important?`<span class="star" aria-label="중요">★</span>`:""}${esc(t.title)}</span><small>${esc(pname(proj(t.projectId)))} · ${isLate(t)?"지연":esc(s.label)}</small></div></div>`};
+  const dayCol=d=>{const k=ymd(d),its=sortImp(wkAll.filter(t=>t.due===k)).sort((a,b)=>(isDone(a)?1:0)-(isDone(b)?1:0)||(a.time||"99").localeCompare(b.time||"99"));
+    const cls=[k===T?"today":"",k<T?"past":"",d.getDay()%6===0?"we":"",its.length?"":"empty"].join(" ");
+    return `<div class="wkday ${cls}"><div class="wkd"><b>${d.getDate()}</b><span>${WD[d.getDay()]}</span>${k===T?`<em>오늘</em>`:""}</div>${its.map(wkItem).join("")}</div>`};
+  const rtDone=routines.filter(r=>rw[r]).length;
+  const rtRow=pn.routines?`<div class="wkrt"><b>정기 업무 <span class="muted">${rtDone}/${routines.length}</span></b>${routines.length?routines.map(r=>`<button type="button" class="rtchip ${rw[r]?"on":""}" data-routine="${esc(r)}" aria-pressed="${rw[r]?"true":"false"}">${esc(r)}</button>`).join(""):`<span class="muted">매주 반복하는 일을 등록하면 여기서 체크할 수 있어요.</span>`}<button class="btn sm" data-act="editRoutines">${routines.length?"편집":"등록"}</button></div>`:"";
+  const upItem=t=>{const d=t.due?pd(t.due):null;
+    return `<div class="upit" data-task="${esc(t.id)}"><button type="button" class="chk" data-check="${esc(t.id)}" aria-label="완료로 표시"></button>
+     ${d?`<div class="dbadge"><small>${d.getMonth()+1}월</small><b>${d.getDate()}</b><small>${WD[d.getDay()]}</small></div>`:`<div class="dbadge none"><small>기한</small><b>—</b><small>없음</small></div>`}
+     <div class="b"><span class="nm">${t.important?`<span class="star" aria-label="중요">★</span>`:""}${esc(t.title)}</span><small>${t.time?esc(timeStr(t))+" · ":""}${esc(pname(proj(t.projectId)))}</small></div>${pill(t)}</div>`};
+  const bizCard=p=>{const tp=timePct(p),opc=outPct(p),n=S.tasks.filter(t=>t.projectId===p.id&&isOpen(t)).length;const main=tp!==null?tp:opc;
+    return `<a class="bcard" href="#p-${esc(p.id)}"><b>${esc(pname(p))}</b><span class="pct">${main!==null?main+"%":"—"}</span>
+     ${main!==null?`<div class="bar ${tp!==null?"time":""}"><i style="width:${main}%"></i></div>`:""}
+     <small>${tp!==null?"기간 경과":opc!==null?"산출목표 달성":"기간 미정"}${tp!==null&&opc!==null?` · 산출 ${opc}%`:""}</small>
+     <small>남은 업무 ${n}${p.end?" · ~"+esc(p.end.slice(2).replace(/-/g,".")):""}</small></a>`};
+  const bottom=[
+   pn.sched?`<section class="panel"><header><h2>다음 일정</h2><a class="btn sm" href="#calendar">캘린더</a></header><div class="list">${later.length||nodue.length?later.map(upItem).join("")+(nodue.length?`<div class="grp"><span>기한 없음</span><span>${nodue.length}</span></div>`+nodue.map(upItem).join(""):""):`<div class="empty">다음 주 이후 일정이 없습니다.</div>`}</div></section>`:"",
+   pn.biz?`<section class="panel"><header><h2>담당 사업</h2><a class="btn sm" href="#projects">전체</a></header>${biz.length?`<div class="bgrid">${biz.map(bizCard).join("")}</div>`:`<div class="empty">진행 중인 사업이 없습니다.</div>`}</section>`:"",
+   pn.links?`<section class="panel"><header><h2>바로가기</h2><button class="btn sm" data-act="editLinks">편집</button></header>${links.length?`<div class="lchips">${links.map(l=>`<a href="${esc(l.url)}" target="_blank" rel="noopener" title="${esc((l.url.match(/\/\/([^/]+)/)||[])[1]||"")}">${esc(l.label)} <span aria-hidden="true">↗</span></a>`).join("")}</div>`:`<div class="empty">자주 여는 문서 주소를 편집에서 등록하세요.</div>`}</section>`:""].filter(Boolean);
   return `<div class="head"><div><p class="hero-d">${esc(PROFILE().name)}${PROFILE().position?" "+esc(PROFILE().position):""}님 · ${NOW.getMonth()+1}월 ${NOW.getDate()}일 ${WD[NOW.getDay()]}요일 · ${weekLabel(wkStart(0))}</p><h1>오늘 할 일</h1></div><a class="btn" href="#report">주간보고 작성</a></div>
   <form class="quick" id="quickForm">
     <input id="qTitle" type="text" placeholder="새 할 일을 입력하고 Enter" aria-label="새 할 일" autocomplete="off">
@@ -598,10 +673,13 @@ function vHome(){
     <div class="kpi"><span>이번 주 남은 마감</span><b>${week.length}</b></div>
     <div class="kpi"><span>이번 주 완료</span><b>${doneWk.length}</b></div>
   </div>
-  <div class="${side?"grid2 homegrid":""}">
-    <section class="panel"><header><h2>할 일</h2><a class="btn sm" href="#tasks">${esc(mlabel("tasks"))}</a></header>
-      <div class="list">${op.length?grp("기한 지남",late,"bad")+grp("오늘",today)+grp("이번 주",week)+grp("다음 일정",later)+grp("기한 없음",nodue):`<div class="empty">남은 할 일이 없습니다. 위 입력칸에서 추가하세요.</div>`}</div></section>
-    ${side?`<div class="stack side">${side}</div>`:""}
+  <div class="stack">
+    <section class="panel"><header><div class="wkh"><h2>이번 주</h2><span class="muted">${days[0].getMonth()+1}.${days[0].getDate()} – ${days[6].getMonth()+1}.${days[6].getDate()} · 남은 마감 ${today.length+week.length}건</span></div><a class="btn sm" href="#tasks">${esc(mlabel("tasks"))}</a></header>
+      ${late.length?`<div class="wklate"><div class="grp bad"><span>기한 지남</span><span>${late.length}</span></div><div class="list">${late.map(rowTask).join("")}</div></div>`:""}
+      <div class="wkscroll"><div class="wkgrid">${days.map(dayCol).join("")}</div></div>
+      ${rtRow}
+    </section>
+    ${bottom.length?`<div class="home3">${bottom.join("")}</div>`:""}
   </div>`;
 }
 function pCard(p){
