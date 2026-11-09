@@ -516,7 +516,7 @@ function applyUI(){
 
 /* ---- 라우팅 ---- */
 const VIEWS=["home","calendar","tasks","projects","report","log","settings","me"];
-function route(){const h=(location.hash||"").replace("#","");if(h.startsWith("p-")){S.view="project";S.pid=h.slice(2)}else S.view=VIEWS.includes(h)?h:"home";render()}
+function route(){const h=(location.hash||"").replace("#","");if(h.startsWith("p-")){S.view="project";S.pid=h.slice(2)}else S.view=VIEWS.includes(h)?h:"home";if(S.view!=="me")S.meOk=false;render()}
 addEventListener("hashchange",route);
 function navHtml(){
   const late=S.tasks.filter(isLate).length;
@@ -531,13 +531,13 @@ function render(){
   applyUI();
   $("#nav").innerHTML=navHtml();
   const keep={};
-  ["cText","cKind","cProj","qTitle","qDue","qTime","qProj"].forEach(id=>{const el=document.getElementById(id);if(el)keep[id]=el.value});
+  ["cText","cKind","cProj","qTitle","qDue","qTime","qProj","meLockPw"].forEach(id=>{const el=document.getElementById(id);if(el)keep[id]=el.value});
   ["rRep","rPlan"].forEach(id=>{const el=document.getElementById(id);if(el&&el.dataset.wk===String(S.wk)&&el.dataset.dirty)keep[id]=el.value});
   const fa=document.activeElement&&document.activeElement.id;
   let html;
   switch(S.view){case"home":html=vHome();break;case"calendar":html=vCal();break;case"tasks":html=vBoard();break;case"projects":html=vProjects();break;case"project":html=vProject();break;case"report":html=vReport();break;case"settings":html=vSettings();break;case"me":html=vMe();break;default:html=vLog()}
   m.innerHTML=html;
-  if(S.view==="me")paintAvatar($("#meAv"));
+  if(S.view==="me"){if(meLocked()){const pi=$("#meLockPw");if(pi&&!fa)pi.focus()}else paintAvatar($("#meAv"))}
   Object.entries(keep).forEach(([id,v])=>{const el=document.getElementById(id);if(el){el.value=v;if(id==="rRep"||id==="rPlan")el.dataset.dirty="1"}});
   if(fa&&fa!=="fQ"){const el=document.getElementById(fa);if(el)el.focus()}
 }
@@ -842,7 +842,20 @@ async function doRestore(){
 }
 
 /* ---- 마이페이지 ---- */
+/* 마이페이지는 들어올 때마다 비밀번호를 한 번 확인합니다 (로그인 계정이 있을 때만) */
+const meLocked=()=>!!window.__WD_verifyPw&&!S.meOk;
+function vMeLock(){
+  return `<div class="head"><div><h1>${esc(mlabel("me"))}</h1><p>내 정보를 보호하기 위해 비밀번호를 한 번 더 확인합니다.</p></div></div>
+  <section class="panel" style="max-width:380px"><header><h2>비밀번호 확인</h2></header>
+   <form id="meLockForm" style="display:flex;flex-direction:column;gap:10px" novalidate>
+    <input type="text" autocomplete="username" value="${esc((window.__WD_USER||{}).name||"")}" hidden>
+    <div class="fld"><label for="meLockPw">비밀번호</label><input id="meLockPw" type="password" autocomplete="current-password" required></div>
+    <p id="meLockMsg" class="muted" style="font-size:12.5px;margin:0;min-height:16px;color:var(--bad,#b4372f)"></p>
+    <div style="display:flex;gap:6px"><button class="btn" id="meLockGo">확인</button><a class="btn" href="#home">취소</a></div>
+   </form></section>`;
+}
 function vMe(){
+  if(meLocked())return vMeLock();
   const p=PROFILE();const opts=[["account","로그인 계정 사진"],["upload","직접 올린 사진"],["icon","아이콘"],["initial","이름 글자"]];
   const f=(k,l,ph,type)=>`<div class="fld"><label for="pf-${k}">${l}</label><input id="pf-${k}" type="${type||"text"}" value="${esc(p[k])}" data-proftext="${k}" placeholder="${esc(ph||"")}"></div>`;
   return `<div class="head"><div><h1>${esc(mlabel("me"))}</h1><p>대시보드에 표시되는 내 이름, 직위, 프로필 사진을 바꿉니다.</p></div></div>
@@ -1049,6 +1062,11 @@ document.addEventListener("input",e=>{
   if(e.target.id==="rRep"||e.target.id==="rPlan")e.target.dataset.dirty="1";
 });
 document.addEventListener("submit",async e=>{
+  if(e.target.id==="meLockForm"){e.preventDefault();const pw=$("#meLockPw").value,msg=$("#meLockMsg"),go=$("#meLockGo");
+    if(!pw){msg.textContent="비밀번호를 입력해 주세요.";return}
+    go.disabled=true;msg.textContent="";
+    try{await window.__WD_verifyPw(pw);S.meOk=true;render()}catch(err){msg.textContent=err&&err.message||"비밀번호가 맞지 않습니다.";go.disabled=false;$("#meLockPw").select()}
+    return}
   if(e.target.id==="quickForm"){e.preventDefault();const title=$("#qTitle").value.trim();if(!title)return;
     const d={title,due:$("#qDue").value,time:$("#qTime").value,projectId:$("#qProj").value,status:firstOf("open"),assignee:ME,memo:"",createdAt:nowIso(),updatedAt:nowIso()};
     try{await S.db.collection("tasks").doc(newId("t")).set(d);$("#qTitle").value="";$("#qDue").value="";$("#qTime").value="";toast("추가했습니다")}catch(err){fail(err)}return}
@@ -1294,6 +1312,11 @@ const to=setTimeout(()=>{if(!S.db){S.err="저장소에 연결하지 못했습니
     }
     started = true;
     window.__WD_USER = { uid: user.uid, name: name };
+    window.__WD_verifyPw = async function(pw){
+      var u = auth.currentUser; if (!u) throw new Error("로그인이 풀렸습니다. 다시 로그인해 주세요.");
+      try { await u.reauthenticateWithCredential(firebase.auth.EmailAuthProvider.credential(u.email, pw)); }
+      catch(err){ throw new Error(/invalid-credential|wrong-password|invalid-login/.test((err && err.code) || "") ? "비밀번호가 맞지 않습니다." : errMsg(err)); }
+    };
     var db = userDb(user.uid);
     var acct = { me: function(){ return Promise.resolve({ name: name, avatarUrl: "" }); } };
     window.claude = { use: function(n){ return Promise.resolve(n === "db" ? db : n === "downloads" ? downloadsApi() : n === "user" ? acct : null); } };
