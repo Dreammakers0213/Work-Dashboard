@@ -91,7 +91,7 @@ function readWeeks() {
 /** 대시보드 로그인 이름 → 계정 주소 (대시보드와 같은 규칙) */
 function nameToEmail(n) {
   const norm = String(n || '').normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
-  const hex = Utilities.newBlob(norm).getBytes().map(b => ('0' + ((b + 256) % 256).toString(16)).slice(-2)).join('');
+  const hex = Utilities.newBlob('').setDataFromString(norm, 'UTF-8').getBytes().map(b => ('0' + ((b + 256) % 256).toString(16)).slice(-2)).join('');
   return 'u' + hex + FB_DOMAIN;
 }
 
@@ -102,7 +102,7 @@ function signIn(name, pw) {
     payload: JSON.stringify({ email: nameToEmail(name), password: pw, returnSecureToken: true })
   });
   const d = JSON.parse(res.getContentText() || '{}');
-  if (res.getResponseCode() !== 200) throw new Error('대시보드 로그인 실패: ' + ((d.error && d.error.message) || res.getResponseCode()) + ' (DASH_NAME/DASH_PASSWORD 확인)');
+  if (res.getResponseCode() !== 200) throw new Error('대시보드 로그인 실패: ' + ((d.error && d.error.message) || res.getResponseCode()) + ' / 시도한 이름 [' + name + '] (글자 수 ' + name.length + ', 비밀번호 ' + pw.length + '자) → ' + nameToEmail(name) + ' · 박예영이면 uebb095ec9888ec9881@work-dashboard.app 이어야 합니다');
   return { uid: d.localId, token: d.idToken };
 }
 
