@@ -277,6 +277,14 @@ a.btn.pri{color:var(--brand-ink)}
 .dn{font-size:12.5px;font-weight:600;align-self:flex-start}
 .chip{display:block;font-size:11.5px;line-height:1.35;padding:2px 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;color:var(--pc);background:color-mix(in srgb,var(--pc) 14%,transparent)}
 .chip.done{text-decoration:line-through;opacity:.6}
+/* 기간 막대: 칸 사이 여백(안쪽 6px + 경계 1px)까지 덮어 옆 칸과 이어 보이게 합니다 */
+.chip.cbar{position:relative;border-radius:0;background:color-mix(in srgb,var(--pc) 14%,var(--surface));margin-left:-7px;margin-right:-7px;max-width:none;padding-left:12px;font-weight:600}
+.chip.cbar.bs{margin-left:0;border-top-left-radius:4px;border-bottom-left-radius:4px;padding-left:5px}
+.chip.cbar.be{margin-right:0;border-top-right-radius:4px;border-bottom-right-radius:4px}
+.chip.cbar:not(.bs){color:transparent}
+.chip.sp{visibility:hidden}
+.cday>.chip,.cday>.more{flex-shrink:0}
+.cday .chip.sp::before{content:"\00a0"}
 .more{font-size:11px;color:var(--muted)}
 .dots{display:none;gap:3px;flex-wrap:wrap}
 .dots i{width:6px;height:6px;border-radius:50%;background:var(--run)}
@@ -337,6 +345,14 @@ main{max-width:1760px}
 .wklate .pill{justify-self:start}
 .wkscroll{overflow-x:auto}
 .wkgrid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:8px}
+.wkspan{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:4px 8px;margin-bottom:8px}
+.sbar{display:flex;align-items:baseline;gap:8px;min-width:0;border:0;border-left:3px solid var(--pc);border-radius:6px;padding:5px 10px;font:inherit;font-size:13px;text-align:left;cursor:pointer;color:var(--ink);background:color-mix(in srgb,var(--pc) 14%,var(--surface))}
+.sbar .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.sbar small{color:var(--muted);font-size:11.5px;white-space:nowrap;margin-left:auto}
+.sbar.cont-l{border-left-style:dashed;border-top-left-radius:0;border-bottom-left-radius:0}
+.sbar.cont-r{border-top-right-radius:0;border-bottom-right-radius:0}
+.sbar.done .nm{text-decoration:line-through;opacity:.6}
+.sbar:hover{background:color-mix(in srgb,var(--pc) 22%,var(--surface))}
 .wkday{border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:150px;min-width:0}
 .wkday.we,.wkday.past{background:var(--bg)}
 .wkday.today{border:2px solid var(--brand);background:color-mix(in srgb,var(--brand) 5%,var(--surface));padding:9px}
@@ -395,6 +411,8 @@ main{max-width:1760px}
 .lchips a:hover{border-color:var(--brand);color:var(--brand)}
 @media (max-width:760px){
  .wkgrid{grid-template-columns:minmax(0,1fr)}
+ .wkspan{grid-template-columns:minmax(0,1fr)}
+ .wkspan .sbar{grid-column:1/-1!important}
  .wkday{min-height:0}
  .wkday.empty:not(.today){display:none}
  .wkd b{font-size:15px}
@@ -662,6 +680,11 @@ function vHome(){
   const dayCol=d=>{const k=ymd(d),its=sortImp(wkAll.filter(t=>t.due===k)).sort((a,b)=>(isDone(a)?1:0)-(isDone(b)?1:0)||(a.time||"99").localeCompare(b.time||"99"));
     const cls=[k===T?"today":"",k<T?"past":"",d.getDay()%6===0?"we":"",its.length?"":"empty"].join(" ");
     return `<div class="wkday ${cls}"><div class="wkd"><b>${d.getDate()}</b><span>${WD[d.getDay()]}</span>${k===T?`<em>오늘</em>`:""}</div>${its.map(wkItem).join("")}</div>`};
+  /* 이번 주에 걸친 기간 업무를 요일 칸 위에 시작일~마감일 막대로 표시 */
+  const wkSpans=S.tasks.filter(t=>hasSpan(t)&&!isHold(t)&&(isOpen(t)||isDone(t))&&t.start<=we&&t.due>=ws).sort((a,b)=>a.start.localeCompare(b.start)||byDue(a,b));
+  const spanRow=wkSpans.length?`<div class="wkspan" aria-label="이번 주 기간 업무">${wkSpans.map(t=>{const a=t.start>ws?t.start:ws,b=t.due<we?t.due:we;
+    const c0=Math.round((pd(a)-pd(ws))/864e5)+1,c1=Math.round((pd(b)-pd(ws))/864e5)+2;const done=isDone(t);
+    return `<button type="button" class="sbar ${t.start<ws?"cont-l":""} ${t.due>we?"cont-r":""} ${done?"done":""}" style="grid-column:${c0}/${c1};--pc:${isLate(t)?"var(--c-red)":cvar(stOf(t.status).color)}" data-task="${esc(t.id)}"><span class="nm">${t.important?"★ ":""}${esc(t.title)}</span><small>${esc(spanStr(t))}</small></button>`}).join("")}</div>`:"";
   const rtDone=routines.filter(r=>rw[r]).length;
   const rtRow=pn.routines?`<div class="wkrt"><b>정기 업무 <span class="muted">${rtDone}/${routines.length}</span></b>${routines.length?routines.map(r=>`<button type="button" class="rtchip ${rw[r]?"on":""}" data-routine="${esc(r)}" aria-pressed="${rw[r]?"true":"false"}">${esc(r)}</button>`).join(""):`<span class="muted">매주 반복하는 일을 등록하면 여기서 체크할 수 있어요.</span>`}<button class="btn sm" data-act="editRoutines">${routines.length?"편집":"등록"}</button></div>`:"";
   const upItem=t=>{const d=t.due?pd(t.due):null;
@@ -693,7 +716,7 @@ function vHome(){
   <div class="stack">
     <section class="panel"><header><div class="wkh"><h2>이번 주</h2><span class="muted">${days[0].getMonth()+1}.${days[0].getDate()} – ${days[6].getMonth()+1}.${days[6].getDate()} · 남은 마감 ${today.length+week.length}건</span></div><a class="btn sm" href="#tasks">${esc(mlabel("tasks"))}</a></header>
       ${late.length?`<div class="wklate"><div class="grp bad"><span>기한 지남</span><span>${late.length}</span></div><div class="list">${late.map(rowTask).join("")}</div></div>`:""}
-      <div class="wkscroll"><div class="wkgrid">${days.map(dayCol).join("")}</div></div>
+      <div class="wkscroll">${spanRow}<div class="wkgrid">${days.map(dayCol).join("")}</div></div>
       ${rtRow}
     </section>
     ${bottom.length?`<div class="home3">${bottom.join("")}</div>`:""}
@@ -735,14 +758,34 @@ function vCal(){
     const from=t.start>gs?t.start:gs,to=t.due<ge?t.due:ge;
     for(let d=pd(from);ymd(d)<=to;d=addDays(d,1)){const k=ymd(d);(byDay[k]=byDay[k]||[]).push(t)}});
   const sel0=S.selDay||T;if(sel0<gs||sel0>ge)S.tasks.forEach(t=>{if(t.due&&!isHold(t)&&hasSpan(t)&&t.start<=sel0&&t.due>sel0)(byDay[sel0]=byDay[sel0]||[]).push(t)});
+  /* 기간 업무: 주(행)마다 같은 줄(lane)에 놓아 시작일~마감일을 한 막대로 잇습니다 */
+  const chipColor=t=>isLate(t)?"var(--c-red)":cvar(stOf(t.status).color);
+  const spans=S.tasks.filter(t=>t.due&&!isHold(t)&&hasSpan(t)&&t.start<=ge&&t.due>=gs);
   let cells="";
-  for(let d=new Date(start);d<=end;d=addDays(d,1)){
+  for(let w=new Date(start);w<=end;w=addDays(w,7)){
+    const ws0=ymd(w),we0=ymd(addDays(w,6));
+    const segs=spans.filter(t=>t.start<=we0&&t.due>=ws0).map(t=>({t,a:t.start>ws0?t.start:ws0,b:t.due<we0?t.due:we0}))
+      .sort((x,y)=>x.a.localeCompare(y.a)||y.b.localeCompare(x.b)||byDue(x.t,y.t));
+    const lanes=[];segs.forEach(g=>{let l=lanes.findIndex(e=>e<g.a);if(l<0){l=lanes.length;lanes.push("")}lanes[l]=g.b;g.l=l});
+    const nL=Math.min(lanes.length,3);
+    for(let i=0;i<7;i++){const d=addDays(w,i);
     const k=ymd(d),items=(byDay[k]||[]).sort(byDue),dw=d.getDay();
+    const singles=items.filter(t=>!hasSpan(t));const here=segs.filter(g=>g.a<=k&&g.b>=k);
+    let rows=[];for(let l=0;l<nL;l++){const g=here.find(x=>x.l===l);
+      if(!g){rows.push(`<span class="chip sp" aria-hidden="true"></span>`);continue}
+      const t=g.t,first=k===g.a,last=k===g.b;
+      rows.push(`<span class="chip cbar${first?" bs":""}${last?" be":""}${isDone(t)?" done":""}" style="--pc:${chipColor(t)}" data-task="${esc(t.id)}" title="${esc(t.title)} (${esc(spanStr(t))})">${first?esc(t.title):"&nbsp;"}</span>`)}
+    /* 빈 줄은 뒤에서부터 정리하고, 남는 자리에 하루짜리 업무를 넣습니다 */
+    while(rows.length&&rows[rows.length-1].includes(" sp\""))rows.pop();
+    const room=Math.max(0,3-rows.length);
+    singles.slice(0,room).forEach(t=>rows.push(`<span class="chip ${isDone(t)?"done":""}" style="--pc:${chipColor(t)}" data-task="${esc(t.id)}" title="${esc(t.title)}">${t.time?esc(t.time)+" ":""}${esc(t.title)}</span>`));
+    const hidden=items.length-here.filter(g=>g.l<nL).length-Math.min(singles.length,room);
     cells+=`<div class="cday ${d.getMonth()!==mo?"out":""} ${k===T?"today":""} ${k===S.selDay?"sel":""} ${dw===0?"sun":dw===6?"sat":""}" data-day="${k}" role="button" tabindex="0" aria-label="${d.getMonth()+1}월 ${d.getDate()}일, 업무 ${items.length}건">
       <span class="dn">${d.getDate()}</span>
-      ${items.slice(0,3).map(t=>`<span class="chip ${isDone(t)?"done":""}" style="--pc:${isLate(t)?"var(--c-red)":cvar(stOf(t.status).color)}" data-task="${esc(t.id)}" title="${esc(t.title)}${hasSpan(t)?" ("+esc(spanStr(t))+")":""}">${hasSpan(t)&&k!==t.start&&k!==ymd(start)?"↳ ":t.time&&(!hasSpan(t)||k===t.due)?esc(t.time)+" ":""}${esc(t.title)}</span>`).join("")}
-      ${items.length>3?`<span class="more">+${items.length-3}건</span>`:""}
+      ${rows.join("")}
+      ${hidden>0?`<span class="more">+${hidden}건</span>`:""}
       ${items.length?`<span class="dots">${items.slice(0,5).map(t=>`<i class="${isLate(t)?"late":""}"></i>`).join("")}</span>`:""}</div>`;
+    }
   }
   const sel=S.selDay||T;const selItems=(byDay[sel]||[]).sort(byDue);
   return `<div class="head"><div><h1>${esc(mlabel("calendar"))}</h1><p>날짜를 누르면 그날 업무를 보고 바로 추가할 수 있습니다.</p></div><button class="btn pri" data-act="newTask" data-due="${sel}">업무 추가</button></div>
