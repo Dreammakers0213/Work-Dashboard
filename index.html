@@ -802,8 +802,8 @@ function genReport(off){
 }
 function vReport(){
   const n=wkStart(S.wk),s=addDays(n,-7),key=ymd(n);const saved=S.reports.find(r=>r.id===key);
-  /* 처음 내용: 저장한 보고서 → 시트에서 받은 내용 → 빈칸 (업무 기준 초안은 버튼으로만) */
-  const sw=S.sheetweeks.find(y=>y.id===ymd(s));const g=saved||(sw?{report:sw.report||"",plan:sw.plan||""}:{report:"",plan:""});
+  /* 처음 내용: 저장한 보고서 → (이번 주만) 시트에서 받은 내용 → 빈칸. 다른 주는 '시트에서 불러오기'·'업무 기준으로 다시 채우기' 버튼으로 */
+  const sw=S.wk===0?S.sheetweeks.find(y=>y.id===ymd(s)):null;const g=saved||(sw?{report:sw.report||"",plan:sw.plan||""}:{report:"",plan:""});
   return `<div class="head"><div><h1>${esc(mlabel("report"))}</h1><p>업무 보드와 정기 업무를 바탕으로 초안을 만듭니다. 고친 뒤 복사해서 주간업무보고 시트에 붙여 넣으세요.</p></div><a class="btn" href="#settings" data-stab="report">양식 설정</a></div>
   <div class="panel" style="margin-bottom:16px"><div class="weeknav" style="justify-content:space-between">
     <div class="weeknav"><button class="btn sm" data-wk="-1" aria-label="이전 주">←</button><b>${n.getFullYear()}년 ${weekLabel(s)} 보고 · ${weekLabel(n)} 계획</b><button class="btn sm" data-wk="1" aria-label="다음 주">→</button>${S.wk!==0?`<button class="btn sm" data-wk="0">이번 주로</button>`:""}</div>
