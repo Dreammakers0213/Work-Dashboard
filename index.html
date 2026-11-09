@@ -695,7 +695,7 @@ function vProject(){
 }
 
 /* ---- 주간업무보고 ---- */
-/* 시트 연동: Apps Script 웹 앱을 <script>로 불러옵니다(JSONP). 회사 계정 전용 배포도 로그인돼 있으면 됩니다 */
+/* 시트 연동: Apps Script 웹 앱을 script 태그로 불러옵니다(JSONP). 회사 계정 전용 배포도 로그인돼 있으면 됩니다 */
 function sheetJsonp(url,week){return new Promise((ok,no)=>{
   const cb="__wdSheet"+Date.now().toString(36),sc=document.createElement("script");let done=false;
   const end=()=>{done=true;clearTimeout(tm);delete window[cb];sc.remove()};
