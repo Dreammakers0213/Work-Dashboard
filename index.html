@@ -1039,6 +1039,7 @@ document.addEventListener("click",async e=>{
   if(x=g("data-prof")){await saveProfile({[x.dataset.prof]:x.dataset.v});return}
   if(x=g("data-theme-pick")){await saveUI({theme:x.dataset.themePick});return}
   if(x=g("data-ui")){await saveUI({[x.dataset.ui]:x.dataset.v});return}
+  if(x=g("data-rep")){await saveUI({report:Object.assign(REP(),{[x.dataset.rep]:x.dataset.v})});return}
   if(x=g("data-iconfor")){pickIconDlg(x.dataset.iconfor);return}
   if(x=g("data-mmove")){const menu=MENU();const i=+x.dataset.mmove,j=i+Number(x.dataset.d);[menu[i],menu[j]]=[menu[j],menu[i]];await saveUI({menu:menu.map(({key,label,icon,on})=>({key,label,icon,on}))});return}
   if(x=g("data-smove")){const sts=clone(STS());const i=+x.dataset.smove,j=i+Number(x.dataset.d);[sts[i],sts[j]]=[sts[j],sts[i]];await saveStatuses(sts);return}
