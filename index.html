@@ -432,8 +432,6 @@ const DEF_MENU=[
  {key:"me",label:"마이페이지",icon:"user",on:true},{key:"settings",label:"운영자 모드",icon:"gear",on:true,fixed:true}];
 const DEF_STATUSES=[{key:"예정",label:"예정",kind:"open",color:"gray"},{key:"진행중",label:"진행중",kind:"open",color:"blue"},{key:"완료",label:"완료",kind:"done",color:"green"},{key:"보류",label:"보류",kind:"hold",color:"orange"}];
 const DEF_PANELS={sched:true,routines:true,biz:true,links:true};
-/* 주간업무보고 시트 연동 웹 앱 (드림메이커스 계정만 열 수 있음) */
-const SHEET_URL_DEFAULT="https://script.google.com/a/macros/dreammakers.or.kr/s/AKfycbyQ4yzi1WW6F7o2ZuURG-u2zhNA1Frd9khKZp6BylxbuqVtB0xVuh2j_h42RUt90qVo/exec";
 const DEF_REPORT={bullet:"●",num:"1)",showStatus:true,extra:"기타사항",routines:true};
 const THEMES={
  teal:{name:"딥 틸 (기본)",b:"#1f4e5f",a:"#d9822b",bd:"#7cc0d4",ad:"#f0a352"},
@@ -807,7 +805,7 @@ function sReport(){
     <div class="opt"><b>항목 번호</b><div class="seg2">${["1)","가.","-","•"].map(v=>`<button type="button" data-rep="num" data-v="${v}" class="${R.num===v?"on":""}">${v}</button>`).join("")}</div></div>
     <div class="opt"><b>업무 보고에 진행 상태 붙이기</b><label class="toggle"><input type="checkbox" data-repcheck="showStatus" ${R.showStatus?"checked":""}> "- 완료", "- 진행중" 표시</label></div>
     <div class="opt"><b>정기 업무 포함</b><label class="toggle"><input type="checkbox" data-repcheck="routines" ${R.routines?"checked":""}> 정기 업무 체크 기록을 보고서에 넣기</label></div>
-    <div class="opt"><b>시트 연동 주소</b><small>주간업무보고 시트의 내 칸(업무 보고·업무 계획)을 불러오는 Apps Script 웹 앱 주소입니다. 주간업무보고 화면의 '시트에서 불러오기'에 쓰입니다.</small><input type="url" value="${esc(R.sheetUrl||"")}" data-reptext="sheetUrl" placeholder="비워 두면 기본 연동 주소를 씁니다" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px" aria-label="시트 연동 주소"></div>
+    <div class="opt"><b>시트 연동 주소</b><small>주간업무보고 시트의 내 칸(업무 보고·업무 계획)을 불러오는 Apps Script 웹 앱 주소입니다. 주간업무보고 화면의 '시트에서 불러오기'에 쓰입니다.</small><input type="url" value="${esc(R.sheetUrl||"")}" data-reptext="sheetUrl" placeholder="https://script.google.com/macros/s/…/exec" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px" aria-label="시트 연동 주소"></div>
     <div class="opt"><b>마지막 칸 이름</b><small>비워 두면 넣지 않습니다.</small><input type="text" id="repExtra" value="${esc(R.extra)}" data-reptext="extra" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px" aria-label="마지막 칸 이름"></div>
   </section>
   <section class="panel"><header><h2>미리보기 (이번 주 업무 보고)</h2></header><pre style="white-space:pre-wrap;margin:0;font:inherit;font-size:13px;line-height:1.65;overflow-wrap:anywhere">${esc(genReport(0).report)}</pre>
@@ -1014,7 +1012,7 @@ document.addEventListener("click",async e=>{
     else if(k==="quickMore")taskDlg(null,$("#qProj").value,$("#qDue").value,{title:$("#qTitle").value.trim(),time:$("#qTime").value});
     else if(k==="newProject")projectDlg();else if(k==="editProject")projectDlg(proj(S.pid));else if(k==="addOutput")outputDlg(proj(S.pid));
     else if(k==="editRoutines")routinesDlg();else if(k==="editLinks")linksDlg();
-    else if(k==="loadSheet"){const url=((REP().sheetUrl||"").trim()||SHEET_URL_DEFAULT);
+    else if(k==="loadSheet"){const url=(REP().sheetUrl||"").trim();
       if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){toast("운영자 모드 > 보고 양식에서 '시트 연동 주소'를 먼저 넣어 주세요");return}
       x.disabled=true;const wk=S.wk;
       try{const d=await sheetJsonp(url,ymd(wkStart(wk)));
