@@ -523,6 +523,9 @@ const NOW=new Date();const T=ymd(NOW);
 const monday=d=>{const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
 const wkStart=off=>addDays(monday(NOW),7*off);
 const fmtMD=s=>{if(!s)return"—";const d=pd(s);return (d.getMonth()+1)+"."+d.getDate()+"("+WD[d.getDay()]+")"};
+/* 업무 기간: 시작일이 마감일보다 앞설 때만 기간으로 봅니다 */
+const hasSpan=t=>!!(t.start&&t.due&&t.start<t.due);
+const spanStr=t=>hasSpan(t)?fmtMD(t.start)+" ~ "+fmtMD(t.due):fmtMD(t.due);
 const weekLabel=m=>(m.getMonth()+1)+"월 "+(Math.floor((m.getDate()-1)/7)+1)+"주차";
 const rangeLabel=m=>{const e=addDays(m,6);return (m.getMonth()+1)+"."+m.getDate()+"(월) ~ "+(e.getMonth()+1)+"."+e.getDate()+"(일)"};
 const fmtWon=n=>n?Number(n).toLocaleString("ko-KR")+"원":"—";
@@ -619,12 +622,12 @@ function rowTask(t){
   const p=proj(t.projectId),late=isLate(t),done=isDone(t);const other=t.assignee&&t.assignee!==ME;
   return `<div class="row ${done?"done":""}"><button type="button" class="chk ${done?"on":""}" data-check="${esc(t.id)}" aria-label="${done?"완료 취소":"완료로 표시"}"></button>
    <span class="d ${late?"late":""}">${fmtMD(t.due)}${t.time?`<small>${esc(timeStr(t))}</small>`:""}</span>
-   <span class="t" data-task="${esc(t.id)}">${t.important?`<span class="star" aria-label="중요">★</span>`:""}${esc(t.title)}${subInfo(t)}${tagChips(t)}<small>${esc(pname(p))}${other?" · "+esc(t.assignee)+" 담당":""}${t.repeat&&t.repeat.type?" · "+repLabel(t.repeat)+" 반복":""}</small></span>${pill(t)}</div>`;
+   <span class="t" data-task="${esc(t.id)}">${t.important?`<span class="star" aria-label="중요">★</span>`:""}${esc(t.title)}${subInfo(t)}${tagChips(t)}<small>${esc(pname(p))}${hasSpan(t)?" · 기간 "+spanStr(t):""}${other?" · "+esc(t.assignee)+" 담당":""}${t.repeat&&t.repeat.type?" · "+repLabel(t.repeat)+" 반복":""}</small></span>${pill(t)}</div>`;
 }
 const sortImp=a=>a.sort((x,y)=>(y.important?1:0)-(x.important?1:0)||byDue(x,y));
 async function spawnNext(t){
-  const nd=nextDue(t.due||T,t.repeat);const id=newId("t");
-  await S.db.collection("tasks").doc(id).set({title:t.title,projectId:t.projectId||"",assignee:t.assignee||ME,memo:t.memo||"",time:t.time||"",endTime:t.endTime||"",important:!!t.important,tags:t.tags||[],repeat:t.repeat,checklist:(t.checklist||[]).map(c=>({text:c.text,done:false})),due:nd,status:firstOf("open"),createdAt:nowIso(),updatedAt:nowIso()});
+  const nd=nextDue(t.due||T,t.repeat);const id=newId("t");const ns=hasSpan(t)?ymd(addDays(pd(nd),-Math.round((pd(t.due)-pd(t.start))/864e5))):"";
+  await S.db.collection("tasks").doc(id).set({title:t.title,projectId:t.projectId||"",assignee:t.assignee||ME,memo:t.memo||"",time:t.time||"",endTime:t.endTime||"",important:!!t.important,tags:t.tags||[],repeat:t.repeat,checklist:(t.checklist||[]).map(c=>({text:c.text,done:false})),start:ns,due:nd,status:firstOf("open"),createdAt:nowIso(),updatedAt:nowIso()});
   await S.db.doc("tasks/"+t.id).update({nextId:id});
   toast("다음 회차 "+fmtMD(nd)+" 업무를 만들었습니다");
 }
@@ -725,13 +728,19 @@ function timePct(p){if(!p.start||!p.end)return null;const a=pd(p.start),b=pd(p.e
 function vCal(){
   const base=new Date(NOW.getFullYear(),NOW.getMonth()+S.calM,1);const y=base.getFullYear(),mo=base.getMonth();
   const start=addDays(base,-base.getDay());const lastDay=new Date(y,mo+1,0);const end=addDays(lastDay,6-lastDay.getDay());
-  const byDay={};S.tasks.forEach(t=>{if(t.due&&!isHold(t))(byDay[t.due]=byDay[t.due]||[]).push(t)});
+  const byDay={};const gs=ymd(start),ge=ymd(end);
+  S.tasks.forEach(t=>{if(!t.due||isHold(t))return;
+    if(!hasSpan(t)){(byDay[t.due]=byDay[t.due]||[]).push(t);return}
+    /* 기간 업무는 시작일부터 마감일까지 매일 표시 (보이는 달력 범위만) */
+    const from=t.start>gs?t.start:gs,to=t.due<ge?t.due:ge;
+    for(let d=pd(from);ymd(d)<=to;d=addDays(d,1)){const k=ymd(d);(byDay[k]=byDay[k]||[]).push(t)}});
+  const sel0=S.selDay||T;if(sel0<gs||sel0>ge)S.tasks.forEach(t=>{if(t.due&&!isHold(t)&&hasSpan(t)&&t.start<=sel0&&t.due>sel0)(byDay[sel0]=byDay[sel0]||[]).push(t)});
   let cells="";
   for(let d=new Date(start);d<=end;d=addDays(d,1)){
     const k=ymd(d),items=(byDay[k]||[]).sort(byDue),dw=d.getDay();
     cells+=`<div class="cday ${d.getMonth()!==mo?"out":""} ${k===T?"today":""} ${k===S.selDay?"sel":""} ${dw===0?"sun":dw===6?"sat":""}" data-day="${k}" role="button" tabindex="0" aria-label="${d.getMonth()+1}월 ${d.getDate()}일, 업무 ${items.length}건">
       <span class="dn">${d.getDate()}</span>
-      ${items.slice(0,3).map(t=>`<span class="chip ${isDone(t)?"done":""}" style="--pc:${isLate(t)?"var(--c-red)":cvar(stOf(t.status).color)}" data-task="${esc(t.id)}" title="${esc(t.title)}">${t.time?esc(t.time)+" ":""}${esc(t.title)}</span>`).join("")}
+      ${items.slice(0,3).map(t=>`<span class="chip ${isDone(t)?"done":""}" style="--pc:${isLate(t)?"var(--c-red)":cvar(stOf(t.status).color)}" data-task="${esc(t.id)}" title="${esc(t.title)}${hasSpan(t)?" ("+esc(spanStr(t))+")":""}">${hasSpan(t)&&k!==t.start&&k!==ymd(start)?"↳ ":t.time&&(!hasSpan(t)||k===t.due)?esc(t.time)+" ":""}${esc(t.title)}</span>`).join("")}
       ${items.length>3?`<span class="more">+${items.length-3}건</span>`:""}
       ${items.length?`<span class="dots">${items.slice(0,5).map(t=>`<i class="${isLate(t)?"late":""}"></i>`).join("")}</span>`:""}</div>`;
   }
@@ -740,7 +749,7 @@ function vCal(){
   <div class="weeknav" style="margin-bottom:12px"><button class="btn sm" data-cal="-1" aria-label="이전 달">←</button><h2>${y}년 ${mo+1}월</h2><button class="btn sm" data-cal="1" aria-label="다음 달">→</button>${S.calM!==0?`<button class="btn sm" data-cal="0">이번 달</button>`:""}</div>
   <div style="overflow-x:auto"><div class="cal">${WD.map((w,i)=>`<div class="wd ${i===0?"sun":i===6?"sat":""}">${w}</div>`).join("")}${cells}</div></div>
   <section class="panel" style="margin-top:16px"><header><h2>${fmtMD(sel)}${sel===T?" · 오늘":""}</h2><button class="btn sm" data-act="newTask" data-due="${sel}">이 날에 추가</button></header>
-    <div class="list">${selItems.length?selItems.map(rowTask).join(""):`<div class="empty">이 날 마감·일정이 없습니다.</div>`}</div></section>`;
+    <div class="list">${selItems.length?selItems.map(rowTask).join(""):`<div class="empty">이 날 마감·일정·진행 중인 업무가 없습니다.</div>`}</div></section>`;
 }
 
 /* ---- 업무 보드 ---- */
@@ -756,7 +765,7 @@ function vBoard(){
   </div>
   <div class="board" style="grid-template-columns:repeat(${Math.min(sts.length,4)},minmax(0,1fr))">${sts.map(st=>{const c=ts.filter(t=>stOf(t.status).key===st.key).sort(st.kind==="done"?(a,b)=>(b.completedAt||b.due||"").localeCompare(a.completedAt||a.due||""):byDue);
    return `<div class="col"><header><h3 style="color:${cvar(st.color)}">${esc(st.label)}</h3><span class="cnt">${c.length}</span></header>${c.map(t=>{const p=proj(t.projectId);const late=isLate(t);
-    return `<div class="card" data-task="${esc(t.id)}"><span class="pj">${esc(pname(p))}${t.repeat&&t.repeat.type?" · "+repLabel(t.repeat):""}</span><span class="ct">${t.important?`<span class="star">★</span>`:""}${esc(t.title)}${subInfo(t)}${tagChips(t)}</span><div class="cm"><span>${t.assignee&&t.assignee!==ME?esc(t.assignee)+" 담당":""}</span><span class="${late?"late":""}">${t.due?fmtMD(t.due)+(t.time?" "+esc(t.time):"")+(late?" 지연":""):"기한 없음"}</span></div></div>`}).join("")||`<div class="muted" style="font-size:12.5px;padding:4px">없음</div>`}</div>`}).join("")}</div>`;
+    return `<div class="card" data-task="${esc(t.id)}"><span class="pj">${esc(pname(p))}${t.repeat&&t.repeat.type?" · "+repLabel(t.repeat):""}</span><span class="ct">${t.important?`<span class="star">★</span>`:""}${esc(t.title)}${subInfo(t)}${tagChips(t)}</span><div class="cm"><span>${t.assignee&&t.assignee!==ME?esc(t.assignee)+" 담당":""}</span><span class="${late?"late":""}">${t.due?spanStr(t)+(t.time?" "+esc(t.time):"")+(late?" 지연":""):"기한 없음"}</span></div></div>`}).join("")||`<div class="muted" style="font-size:12.5px;padding:4px">없음</div>`}</div>`}).join("")}</div>`;
 }
 
 /* ---- 담당 사업 ---- */
@@ -784,7 +793,7 @@ function vProject(){
   }else if(S.ptab==="schedule"){
     const months={};ts.forEach(t=>{const k=(t.due||"0000-00").slice(0,7);(months[k]=months[k]||[]).push(t)});const keys=Object.keys(months).sort();const cur=T.slice(0,7);
     body=`<section class="panel"><header><h2>월별 일정·업무</h2><button class="btn sm" data-act="newTask" data-pid="${esc(p.id)}">업무 추가</button></header>
-     <div class="timeline">${keys.length?keys.map(k=>`<div class="month ${k===cur?"now":""}"><b>${k==="0000-00"?"기한 미정":k.replace("-",".")}</b><div class="items">${months[k].sort(byDue).map(t=>`<div class="titem" data-task="${esc(t.id)}">${pill(t)}<span class="nm">${esc(t.title)}</span><small>${t.assignee&&t.assignee!==ME?esc(t.assignee)+" · ":""}${fmtMD(t.due)}${t.time?" "+esc(t.time):""}</small></div>`).join("")}</div></div>`).join(""):`<div class="empty">등록된 업무가 없습니다.</div>`}</div></section>`;
+     <div class="timeline">${keys.length?keys.map(k=>`<div class="month ${k===cur?"now":""}"><b>${k==="0000-00"?"기한 미정":k.replace("-",".")}</b><div class="items">${months[k].sort(byDue).map(t=>`<div class="titem" data-task="${esc(t.id)}">${pill(t)}<span class="nm">${esc(t.title)}</span><small>${t.assignee&&t.assignee!==ME?esc(t.assignee)+" · ":""}${spanStr(t)}${t.time?" "+esc(t.time):""}</small></div>`).join("")}</div></div>`).join(""):`<div class="empty">등록된 업무가 없습니다.</div>`}</div></section>`;
   }else{
     body=`<section class="panel"><header><h2>참고 메모</h2><button class="btn sm" data-act="editProject">수정</button></header><p class="notes">${esc(p.notes||"협력기관, 연락 창구, 보고 일정 등을 적어 두세요.")}</p></section>`;
   }
@@ -821,7 +830,7 @@ function genReport(off){
   const plan=group(t=>mine(t)&&isOpen(t)&&((t.due&&t.due<=E2)||stOf(t.status).key===(STS().filter(x=>x.kind==="open")[1]||{}).key));
   const order=[...S.projects.filter(p=>p.kind!=="영역"),...S.projects.filter(p=>p.kind==="영역")].map(p=>p.id).concat([""]);
   const fmt=(by,mode)=>{const out=[];order.forEach(pid=>{const ts=by[pid];if(!ts||!ts.length)return;const p=proj(pid);out.push(R.bullet+" "+(p?p.name:"기타 업무"));
-    ts.sort(byDue).forEach((t,i)=>{let tail="";if(mode==="rep"){if(R.showStatus)tail=isDone(t)?" - 완료":" - "+stOf(t.status).label}else tail=t.due?" ~ "+fmtMD(t.due)+(t.time?" "+timeStr(t):""):"";out.push("  "+numFmt(R.num,i)+" "+t.title+tail)});out.push("")});return out};
+    ts.sort(byDue).forEach((t,i)=>{let tail="";if(mode==="rep"){if(R.showStatus)tail=isDone(t)?" - 완료":" - "+stOf(t.status).label}else tail=t.due?(hasSpan(t)?" "+spanStr(t):" ~ "+fmtMD(t.due))+(t.time?" "+timeStr(t):""):"";out.push("  "+numFmt(R.num,i)+" "+t.title+tail)});out.push("")});return out};
   const routines=setting("routines").items||[];const rw=(S.rweeks.find(x=>x.id===S1)||{}).done||{};
   const r1=fmt(rep,"rep");const r2=fmt(plan,"plan");
   if(R.routines){const dr=routines.filter(r=>rw[r]);if(dr.length){r1.push(R.bullet+" 정기 업무");dr.forEach((r,i)=>r1.push("  "+numFmt(R.num,i)+" "+r));r1.push("")}
@@ -1057,8 +1066,9 @@ function taskDlg(t,pid,due,preset){
    <div class="fld"><label for="tTitle">업무명</label><input id="tTitle" name="title" required value="${esc(t.title)}"></div>
    <div class="two"><div class="fld"><label for="tProj">사업</label><select id="tProj" name="projectId">${projOpts(t.projectId)}</select></div>
    <div class="fld"><label for="tSt">상태</label><select id="tSt" name="status">${STS().map(s=>`<option value="${esc(s.key)}" ${t.status===s.key?"selected":""}>${esc(s.label)}</option>`).join("")}</select></div></div>
-   <div class="three"><div class="fld"><label for="tDue">마감일·일정일</label><input id="tDue" type="date" name="due" value="${esc(t.due)}"></div>
-   <div class="fld"><label for="tTime">시작 시간</label><input id="tTime" type="time" name="time" value="${esc(t.time)}"></div>
+   <div class="two"><div class="fld"><label for="tStart">시작일 (선택)</label><input id="tStart" type="date" name="start" value="${esc(t.start)}"></div>
+   <div class="fld"><label for="tDue">마감일·일정일</label><input id="tDue" type="date" name="due" value="${esc(t.due)}"></div></div>
+   <div class="two"><div class="fld"><label for="tTime">시작 시간</label><input id="tTime" type="time" name="time" value="${esc(t.time)}"></div>
    <div class="fld"><label for="tEnd">종료 시간</label><input id="tEnd" type="time" name="endTime" value="${esc(t.endTime)}"></div></div>
    <div class="two"><div class="fld"><label for="tRep">반복</label><select id="tRep" name="repeat"><option value="">반복 안 함</option><option value="monthly" ${rt==="monthly"?"selected":""}>매월 (마감일과 같은 날짜)</option><option value="weekly" ${rt==="weekly"?"selected":""}>매주 (마감일과 같은 요일)</option></select></div>
    <div class="fld"><label for="tWho">다른 담당자</label><input id="tWho" name="assignee" value="${esc(t.assignee&&t.assignee!==ME?t.assignee:"")}" placeholder="내 업무면 비워 두세요"></div></div>
@@ -1069,6 +1079,9 @@ function taskDlg(t,pid,due,preset){
    ${rt?`<p class="muted" style="margin:0;font-size:12.5px">완료로 바꾸면 다음 회차 업무가 자동으로 만들어집니다.</p>`:""}`,
    async fd=>{const d=Object.fromEntries(fd);const r=d.repeat;delete d.repeat;delete d.tag;
      if(r&&!d.due){toast("반복 업무는 마감일을 넣어 주세요");return false}
+     d.start=d.start||"";if(d.start&&!d.due){toast("시작일을 넣었다면 마감일도 넣어 주세요");return false}
+     if(d.start&&d.start>d.due){toast("시작일이 마감일보다 늦습니다");return false}
+     if(d.start===d.due)d.start="";
      d.repeat=r?{type:r,day:pd(d.due).getDate(),dow:pd(d.due).getDay()}:null;d.tags=fd.getAll("tag");
      d.important=fd.has("important");d.checklist=cl;d.assignee=(d.assignee||"").trim()||ME;
      Object.assign(d,statusPatch(t.status,d.status));d.updatedAt=nowIso();
