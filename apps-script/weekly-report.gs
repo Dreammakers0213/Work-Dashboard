@@ -16,6 +16,16 @@ const COL_REPORT = 5; // E열
 const COL_PLAN = 6;   // F열
 
 function doGet(e) {
+  const cb = String((e && e.parameter && e.parameter.callback) || '');
+  const res = read(e);
+  // 대시보드는 callback 이름을 붙여 <script>로 부릅니다 (브라우저 CORS·회사 계정 로그인 문제 회피)
+  if (/^[A-Za-z_$][\w$]*$/.test(cb)) {
+    return ContentService.createTextOutput(cb + '(' + JSON.stringify(res) + ');').setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function read(e) {
   try {
     const week = String((e && e.parameter && e.parameter.week) || '');
     const m = week.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -43,6 +53,4 @@ function doGet(e) {
   }
 }
 
-function out(o) {
-  return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
-}
+function out(o) { return o; }

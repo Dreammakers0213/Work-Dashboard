@@ -461,7 +461,7 @@ const newId=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const proj=id=>S.projects.find(p=>p.id===id);
 const pname=p=>p?(p.short||p.name):"기타 업무";
 const setting=id=>(S.settings.find(x=>x.id===id)||{});
-const toast=m=>{const e=document.createElement("div");e.className="toast";e.textContent=m;document.body.appendChild(e);setTimeout(()=>e.remove(),2600)};
+const toast=(m,ms)=>{const e=document.createElement("div");e.className="toast";e.textContent=m;document.body.appendChild(e);setTimeout(()=>e.remove(),ms||2600)};
 const safeUrl=u=>/^https?:\/\//i.test(u||"")?u:"";
 const clone=o=>JSON.parse(JSON.stringify(o));
 $("#today").textContent=T.replace(/-/g,".")+" 기준";
@@ -695,6 +695,15 @@ function vProject(){
 }
 
 /* ---- 주간업무보고 ---- */
+/* 시트 연동: Apps Script 웹 앱을 <script>로 불러옵니다(JSONP). 회사 계정 전용 배포도 로그인돼 있으면 됩니다 */
+function sheetJsonp(url,week){return new Promise((ok,no)=>{
+  const cb="__wdSheet"+Date.now().toString(36),sc=document.createElement("script");let done=false;
+  const end=()=>{done=true;clearTimeout(tm);delete window[cb];sc.remove()};
+  const tm=setTimeout(()=>{if(!done){end();no(new Error("응답이 없습니다. 주소가 맞는지, 브라우저가 회사 구글 계정으로 로그인돼 있는지 확인해 주세요"))}},15000);
+  window[cb]=d=>{end();ok(d||{})};
+  const bad=()=>{if(!done){end();no(new Error("웹 앱에 접근하지 못했습니다. 배포 액세스 권한과 회사 구글 계정 로그인을 확인해 주세요"))}};
+  sc.onerror=bad;sc.onload=()=>setTimeout(bad,50);
+  sc.src=url+(url.includes("?")?"&":"?")+"week="+encodeURIComponent(week)+"&callback="+cb;document.head.appendChild(sc)})}
 function numFmt(style,i){if(style==="가."){const K="가나다라마바사아자차카타파하";return (K[i]||String(i+1))+"."}if(style==="-"||style==="•")return style;return (i+1)+")"}
 function genReport(off){
   const R=REP();const s=wkStart(off),S1=ymd(s),E1=ymd(addDays(s,6)),E2=ymd(addDays(s,13));
@@ -1006,12 +1015,12 @@ document.addEventListener("click",async e=>{
     else if(k==="loadSheet"){const url=(REP().sheetUrl||"").trim();
       if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){toast("운영자 모드 > 보고 양식에서 '시트 연동 주소'를 먼저 넣어 주세요");return}
       x.disabled=true;const wk=S.wk;
-      try{const r=await fetch(url+(url.includes("?")?"&":"?")+"week="+ymd(wkStart(wk)));const d=await r.json();
+      try{const d=await sheetJsonp(url,ymd(wkStart(wk)));
         if(d.error)throw new Error((d.sheet?"["+d.sheet+"] ":"")+d.error);
         if(S.view!=="report"||S.wk!==wk)return;
         $("#rRep").value=d.report||"";$("#rPlan").value=d.plan||"";$("#rRep").dataset.dirty=$("#rPlan").dataset.dirty="1";
         toast("'"+d.sheet+"' 시트에서 불러왔습니다. 저장해야 남습니다")}
-      catch(err){toast("불러오지 못했습니다: "+(err&&err.message||err))}
+      catch(err){toast("불러오지 못했습니다: "+(err&&err.message||err),9000)}
       finally{x.disabled=false}}
     else if(k==="regen"){const r=genReport(S.wk);$("#rRep").value=r.report;$("#rPlan").value=r.plan;$("#rRep").dataset.dirty=$("#rPlan").dataset.dirty="1";toast("업무 보드 기준으로 다시 채웠습니다. 저장해야 남습니다")}
     else if(k==="saveReport"){try{await S.db.doc("reports/"+ymd(wkStart(S.wk))).set({report:$("#rRep").value,plan:$("#rPlan").value,savedAt:nowIso()});["rRep","rPlan"].forEach(id=>delete $("#"+id).dataset.dirty);toast("저장했습니다")}catch(err){fail(err)}}
