@@ -369,12 +369,26 @@ main{max-width:1760px}
 .dbadge{width:46px;flex:none;text-align:center;background:var(--bg);border-radius:8px;padding:4px 0;display:flex;flex-direction:column;line-height:1.25}
 .dbadge b{font-size:17px}.dbadge small{font-size:11px;color:var(--muted)}
 .dbadge.none b{color:var(--faint)}
-.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.bgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
 .bcard{display:flex;flex-direction:column;gap:7px;border:1px solid var(--line);border-radius:10px;padding:14px;color:var(--ink);text-decoration:none;min-width:0}
 .bcard:hover{border-color:var(--brand)}
 .bcard b{font-weight:600}
 .bcard .pct{font-size:26px;font-weight:700;color:var(--brand);line-height:1;font-variant-numeric:tabular-nums}
 .bcard small{font-size:12px;color:var(--muted)}
+.bcard .late,.pnext .late{color:var(--bad);font-weight:600}
+.bcard .bnext{color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pnm{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;min-width:0}
+.pnm b{font-size:16px;line-height:1.4}
+.pshort{font-size:12px;color:var(--muted);background:var(--sunk);border-radius:6px;padding:1px 7px}
+.pbadges{display:flex;gap:6px;flex:none}
+.stchip{font-size:12px;font-weight:600;color:var(--pc);background:color-mix(in srgb,var(--pc) 14%,transparent);border-radius:99px;padding:2px 10px;white-space:nowrap}
+.pcard .dd{font-weight:600;color:var(--ink)}
+.pstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px 20px}
+.pst{display:flex;flex-direction:column;gap:6px;min-width:0}
+.pst small{font-size:12px;color:var(--muted)}
+.bar.ok i{background:var(--ok)}
+.pnext{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:baseline;font-size:13.5px;background:var(--bg);border-radius:8px;padding:8px 12px}
+.pnext .nm{font-weight:600;flex:1 1 200px;min-width:0}
 .lchips{display:flex;flex-wrap:wrap;gap:8px}
 .lchips a{font-size:13.5px;color:var(--ink);text-decoration:none;background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:8px 14px}
 .lchips a span{color:var(--faint);font-size:12px}
@@ -652,10 +666,10 @@ function vHome(){
      ${d?`<div class="dbadge"><small>${d.getMonth()+1}월</small><b>${d.getDate()}</b><small>${WD[d.getDay()]}</small></div>`:`<div class="dbadge none"><small>기한</small><b>—</b><small>없음</small></div>`}
      <div class="b"><span class="nm">${t.important?`<span class="star" aria-label="중요">★</span>`:""}${esc(t.title)}</span><small>${t.time?esc(timeStr(t))+" · ":""}${esc(pname(proj(t.projectId)))}</small></div>${pill(t)}</div>`};
   const bizCard=p=>{const tp=timePct(p),opc=outPct(p),n=S.tasks.filter(t=>t.projectId===p.id&&isOpen(t)).length;const main=tp!==null?tp:opc;
-    return `<a class="bcard" href="#p-${esc(p.id)}"><b>${esc(pname(p))}</b><span class="pct">${main!==null?main+"%":"—"}</span>
+    const k=pStat(p);return `<a class="bcard" href="#p-${esc(p.id)}"><b>${esc(p.name||pname(p))}</b><span class="pct">${main!==null?main+"%":"—"}</span>
      ${main!==null?`<div class="bar ${tp!==null?"time":""}"><i style="width:${main}%"></i></div>`:""}
      <small>${tp!==null?"기간 경과":opc!==null?"산출목표 달성":"기간 미정"}${tp!==null&&opc!==null?` · 산출 ${opc}%`:""}</small>
-     <small>남은 업무 ${n}${p.end?" · ~"+esc(p.end.slice(2).replace(/-/g,".")):""}</small></a>`};
+     <small>남은 업무 ${n}${k.late?` · <span class="late">지연 ${k.late}</span>`:""}${k.dd?" · "+k.dd:""}</small>${k.next?`<small class="bnext">다음: ${esc(k.next.title)}${k.next.due?" · "+fmtMD(k.next.due):""}</small>`:""}</a>`};
   const bottom=[
    pn.sched?`<section class="panel"><header><h2>다음 일정</h2><a class="btn sm" href="#calendar">캘린더</a></header><div class="list">${later.length||nodue.length?later.map(upItem).join("")+(nodue.length?`<div class="grp"><span>기한 없음</span><span>${nodue.length}</span></div>`+nodue.map(upItem).join(""):""):`<div class="empty">다음 주 이후 일정이 없습니다.</div>`}</div></section>`:"",
    pn.biz?`<section class="panel"><header><h2>담당 사업</h2><a class="btn sm" href="#projects">전체</a></header>${biz.length?`<div class="bgrid">${biz.map(bizCard).join("")}</div>`:`<div class="empty">진행 중인 사업이 없습니다.</div>`}</section>`:"",
@@ -682,12 +696,27 @@ function vHome(){
     ${bottom.length?`<div class="home3">${bottom.join("")}</div>`:""}
   </div>`;
 }
+/* 사업 카드: 정식 명칭 + 진행 현황(기간·업무·산출목표) + 다음 할 일 */
+function pStat(p){
+  const ts=S.tasks.filter(t=>t.projectId===p.id&&!isHold(t));const done=ts.filter(isDone).length,open=ts.filter(isOpen);
+  const late=open.filter(isLate).length;const next=[...open].sort(byDue).find(t=>t.due)||open[0]||null;
+  let dd="";if(p.end){const left=Math.round((pd(p.end)-pd(T))/864e5);const before=p.start&&p.start>T?Math.round((pd(p.start)-pd(T))/864e5):null;
+    dd=before!==null?"시작까지 D-"+before:left<0?"기간 종료":left===0?"오늘 종료":"종료까지 D-"+left}
+  return {total:ts.length,done,openN:open.length,late,next,dd,tp:timePct(p),op:outPct(p),tk:ts.length?Math.round(done/ts.length*100):null};
+}
+const stChip=st=>`<span class="stchip" style="--pc:${st==="진행중"?"var(--run)":st==="종료"?"var(--faint)":"var(--warn)"}">${esc(st||"진행중")}</span>`;
 function pCard(p){
-  const op=outPct(p),tp=timePct(p);const openN=S.tasks.filter(t=>t.projectId===p.id&&isOpen(t)).length;
-  return `<div class="pcard" data-proj="${esc(p.id)}"><div class="top"><b>${esc(pname(p))}</b><span class="meta">남은 업무 ${openN}</span></div>
-   ${p.funder||p.start?`<div class="meta">${esc(p.funder||"")}${p.start?` · ${p.start.replace(/-/g,".")} ~ ${(p.end||"").replace(/-/g,".")}`:""}</div>`:""}
-   ${tp!==null?`<div class="barlbl"><span>사업기간 경과</span><span>${tp}%</span></div><div class="bar time"><i style="width:${tp}%"></i></div>`:""}
-   ${op!==null?`<div class="barlbl"><span>산출목표 달성</span><span>${op}%</span></div><div class="bar"><i style="width:${op}%"></i></div>`:""}</div>`;
+  const k=pStat(p);const sh=p.short&&p.short!==p.name?`<span class="pshort">${esc(p.short)}</span>`:"";
+  const stat=(lbl,val,pct,cls,sub)=>`<div class="pst"><div class="barlbl"><span>${lbl}</span><span>${val}</span></div><div class="bar ${cls||""}"><i style="width:${pct||0}%"></i></div>${sub?`<small>${sub}</small>`:""}</div>`;
+  return `<div class="pcard" data-proj="${esc(p.id)}">
+   <div class="top"><div class="pnm"><b>${esc(p.name||pname(p))}</b>${sh}</div><div class="pbadges">${k.late?`<span class="stchip" style="--pc:var(--bad)">지연 ${k.late}</span>`:""}${stChip(p.status)}</div></div>
+   <div class="meta">${[p.funder?esc(p.funder):"",p.start?`${p.start.replace(/-/g,".")} ~ ${(p.end||"").replace(/-/g,".")}`:"",k.dd?`<b class="dd">${k.dd}</b>`:""].filter(Boolean).join(" · ")}</div>
+   <div class="pstats">
+    ${k.tp!==null?stat("사업기간 경과",k.tp+"%",k.tp,"time"):""}
+    ${stat("업무 완료",k.total?`${k.done}/${k.total}건`:"업무 없음",k.tk,"",k.total?`남은 업무 ${k.openN}건`:"")}
+    ${k.op!==null?stat("산출목표 달성",k.op+"%",k.op,"ok"):""}
+   </div>
+   <div class="pnext">${k.next?`<span class="muted">다음 할 일</span><span class="nm">${k.next.important?`<span class="star" aria-hidden="true">★</span>`:""}${esc(k.next.title)}</span><span class="${isLate(k.next)?"late":"muted"}">${k.next.due?fmtMD(k.next.due)+(k.next.time?" "+esc(timeStr(k.next)):""):"기한 없음"}</span>`:`<span class="muted">남은 할 일이 없습니다.</span>`}</div></div>`;
 }
 function outPct(p){const o=(p.outputs||[]).filter(x=>x.target>0);if(!o.length)return null;return Math.round(o.reduce((a,x)=>a+Math.min(1,(x.done||0)/x.target),0)/o.length*100)}
 function timePct(p){if(!p.start||!p.end)return null;const a=pd(p.start),b=pd(p.end);return Math.max(0,Math.min(100,Math.round((pd(T)-a)/(b-a)*100)))}
@@ -1057,8 +1086,8 @@ function taskDlg(t,pid,due,preset){
 function projectDlg(p){
   const isNew=!p;p=p||{status:"진행중",kind:"사업"};
   openDlg(isNew?"사업·영역 등록":"사업 정보 수정",`
-   <div class="fld"><label for="pName">이름</label><input id="pName" name="name" required value="${esc(p.name)}"></div>
-   <div class="two"><div class="fld"><label for="pShort">짧은 이름</label><input id="pShort" name="short" value="${esc(p.short)}"></div>
+   <div class="fld"><label for="pName">사업명 (정식 명칭)</label><input id="pName" name="name" required value="${esc(p.name)}" placeholder="예: With 우리 Wealth 프로젝트 2"></div>
+   <div class="two"><div class="fld"><label for="pShort">짧은 이름 (업무 목록에 표시)</label><input id="pShort" name="short" value="${esc(p.short)}"></div>
    <div class="fld"><label for="pKind">구분</label><select id="pKind" name="kind">${[["사업","사업"],["영역","상시 업무 영역"]].map(([v,l])=>`<option value="${v}" ${(p.kind||"사업")===v?"selected":""}>${l}</option>`).join("")}</select></div></div>
    <div class="two"><div class="fld"><label for="pFunder">지원·협력처</label><input id="pFunder" name="funder" value="${esc(p.funder)}"></div>
    <div class="fld"><label for="pSt">상태</label><select id="pSt" name="status">${["준비","진행중","종료"].map(s=>`<option ${p.status===s?"selected":""}>${s}</option>`).join("")}</select></div></div>
