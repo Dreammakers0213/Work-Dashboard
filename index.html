@@ -1095,9 +1095,9 @@ document.addEventListener("click",async e=>{
       const sw=S.sheetweeks.find(y=>y.id===key);
       if(sw){$("#rRep").value=sw.report||"";$("#rPlan").value=sw.plan||"";$("#rRep").dataset.dirty=$("#rPlan").dataset.dirty="1";
         toast("'"+(sw.sheet||"시트")+"' 내용을 넣었습니다 ("+fmtTs(sw.syncedAt)+" 동기화). 저장해야 남습니다",6000);return}
-      if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){
+      if(S.sheetweeks.length||!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){
         const lastSync=S.sheetweeks.map(y=>y.syncedAt||"").sort().pop();
-        toast(lastSync?"이 주("+fmtMD(key)+" 시작)의 시트 탭은 아직 받지 못했습니다. 마지막 동기화 "+fmtTs(lastSync):"아직 시트에서 받은 내용이 없습니다. 시트 동기화 스크립트를 설치해 주세요 (운영자 모드 > 보고 양식 참고)",9000);return}
+        toast(lastSync?"이 주("+fmtMD(key)+" 시작)의 시트 탭은 아직 받지 못했습니다. 시트에 이 주 탭이 생기면 1시간 안에 들어옵니다 (마지막 동기화 "+fmtTs(lastSync)+")":"아직 시트에서 받은 내용이 없습니다. 시트 동기화 스크립트를 설치해 주세요 (운영자 모드 > 보고 양식 참고)",9000);return}
       x.disabled=true;
       try{const d=await sheetJsonp(url,ymd(wkStart(wk)));
         if(d.error)throw new Error((d.sheet?"["+d.sheet+"] ":"")+d.error);
