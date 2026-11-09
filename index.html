@@ -448,7 +448,7 @@ window.FIREBASE_CONFIG = {
 (function(){
 const ME=(window.__WD_USER&&window.__WD_USER.name)||"사용자";
 const WD=["일","월","화","수","목","금","토"];
-const COLS=["projects","tasks","posts","reports","settings","rweeks"];
+const COLS=["projects","tasks","posts","reports","settings","rweeks","sheetweeks"];
 const LOGKINDS=["업무일지","회의록","메모"];
 /* ---- 아이콘 ---- */
 const ICONS={
@@ -499,7 +499,7 @@ const THEMES={
  charcoal:{name:"차콜",b:"#2b2f33",a:"#c8414f",bd:"#c9d1d9",ad:"#f08090"}};
 const DEF_UI={theme:"teal",custom:{b:"#1f4e5f",a:"#d9822b"},mode:"system",font:"normal",rail:"brand",logo:"star",showUser:true,title:"업무 대시보드",subtitle:"드림메이커스 · 사업2팀 선임매니저"};
 
-const S={projects:[],tasks:[],posts:[],reports:[],settings:[],rweeks:[],loaded:{},db:null,dl:null,err:"",view:"home",pid:null,ptab:"overview",fProj:"",fQ:"",fMine:false,fTag:"",wk:0,calM:0,selDay:"",stab:"design",draft:null,restore:null};
+const S={projects:[],tasks:[],posts:[],reports:[],settings:[],rweeks:[],sheetweeks:[],loaded:{},db:null,dl:null,err:"",view:"home",pid:null,ptab:"overview",fProj:"",fQ:"",fMine:false,fTag:"",wk:0,calM:0,selDay:"",stab:"design",draft:null,restore:null};
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -883,7 +883,8 @@ function sReport(){
     <div class="opt"><b>항목 번호</b><div class="seg2">${["1)","가.","-","•"].map(v=>`<button type="button" data-rep="num" data-v="${v}" class="${R.num===v?"on":""}">${v}</button>`).join("")}</div></div>
     <div class="opt"><b>업무 보고에 진행 상태 붙이기</b><label class="toggle"><input type="checkbox" data-repcheck="showStatus" ${R.showStatus?"checked":""}> "- 완료", "- 진행중" 표시</label></div>
     <div class="opt"><b>정기 업무 포함</b><label class="toggle"><input type="checkbox" data-repcheck="routines" ${R.routines?"checked":""}> 정기 업무 체크 기록을 보고서에 넣기</label></div>
-    <div class="opt"><b>시트 연동 주소</b><small>주간업무보고 시트의 내 칸(업무 보고·업무 계획)을 불러오는 Apps Script 웹 앱 주소입니다. 주간업무보고 화면의 '시트에서 불러오기'에 쓰입니다.</small><input type="url" value="${esc(R.sheetUrl||"")}" data-reptext="sheetUrl" placeholder="https://script.google.com/macros/s/…/exec" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px" aria-label="시트 연동 주소"></div>
+    <div class="opt"><b>주간업무보고 시트 동기화</b><small>시트 쪽 Apps Script(저장소 apps-script/weekly-report.gs)가 1시간마다 내 칸(업무 보고·업무 계획)을 이 대시보드로 보내 줍니다. 주간업무보고 화면의 '시트에서 불러오기'를 누르면 받은 내용이 채워집니다.</small><span>${(()=>{const l=S.sheetweeks.map(y=>y.syncedAt||"").sort().pop();return l?"마지막 동기화 "+fmtTs(l)+" · 받은 주 "+S.sheetweeks.length+"개":"아직 받은 내용이 없습니다"})()}</span></div>
+    <div class="opt"><b>시트 연동 주소 (선택)</b><small>동기화 대신 Apps Script 웹 앱으로 직접 불러올 때만 넣습니다. 비워 두어도 됩니다.</small><input type="url" value="${esc(R.sheetUrl||"")}" data-reptext="sheetUrl" placeholder="https://script.google.com/macros/s/…/exec" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px" aria-label="시트 연동 주소"></div>
     <div class="opt"><b>마지막 칸 이름</b><small>비워 두면 넣지 않습니다.</small><input type="text" id="repExtra" value="${esc(R.extra)}" data-reptext="extra" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px" aria-label="마지막 칸 이름"></div>
   </section>
   <section class="panel"><header><h2>미리보기 (이번 주 업무 보고)</h2></header><pre style="white-space:pre-wrap;margin:0;font:inherit;font-size:13px;line-height:1.65;overflow-wrap:anywhere">${esc(genReport(0).report)}</pre>
@@ -1090,9 +1091,14 @@ document.addEventListener("click",async e=>{
     else if(k==="quickMore")taskDlg(null,$("#qProj").value,$("#qDue").value,{title:$("#qTitle").value.trim(),time:$("#qTime").value});
     else if(k==="newProject")projectDlg();else if(k==="editProject")projectDlg(proj(S.pid));else if(k==="addOutput")outputDlg(proj(S.pid));
     else if(k==="editRoutines")routinesDlg();else if(k==="editLinks")linksDlg();
-    else if(k==="loadSheet"){const url=(REP().sheetUrl||"").trim();
-      if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){toast("운영자 모드 > 보고 양식에서 '시트 연동 주소'를 먼저 넣어 주세요");return}
-      x.disabled=true;const wk=S.wk;
+    else if(k==="loadSheet"){const url=(REP().sheetUrl||"").trim();const wk=S.wk,key=ymd(wkStart(wk));
+      const sw=S.sheetweeks.find(y=>y.id===key);
+      if(sw){$("#rRep").value=sw.report||"";$("#rPlan").value=sw.plan||"";$("#rRep").dataset.dirty=$("#rPlan").dataset.dirty="1";
+        toast("'"+(sw.sheet||"시트")+"' 내용을 넣었습니다 ("+fmtTs(sw.syncedAt)+" 동기화). 저장해야 남습니다",6000);return}
+      if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){
+        const lastSync=S.sheetweeks.map(y=>y.syncedAt||"").sort().pop();
+        toast(lastSync?"이 주("+fmtMD(key)+" 시작)의 시트 탭은 아직 받지 못했습니다. 마지막 동기화 "+fmtTs(lastSync):"아직 시트에서 받은 내용이 없습니다. 시트 동기화 스크립트를 설치해 주세요 (운영자 모드 > 보고 양식 참고)",9000);return}
+      x.disabled=true;
       try{const d=await sheetJsonp(url,ymd(wkStart(wk)));
         if(d.error)throw new Error((d.sheet?"["+d.sheet+"] ":"")+d.error);
         if(S.view!=="report"||S.wk!==wk)return;
