@@ -1,21 +1,22 @@
 /**
  * 업무 대시보드 ↔ 「2026 드림메이커스 주간업무보고 ★」 연동 (시트 → 대시보드로 보내기)
  *
- * 1시간마다 주간업무보고 시트의 주별 탭에서 NAME 행의 '업무 보고'(E열)·'업무 계획'(F열) 칸만 읽어
+ * 1시간마다 주간업무보고 시트의 주별 탭에서 내 이름 행의 '업무 보고'(E열)·'업무 계획'(F열) 칸만 읽어
  * 대시보드 계정의 sheetweeks/<보고 주 월요일> 에 넣습니다. 다른 사람의 칸은 읽지도 보내지도 않습니다.
  * 대시보드에서는 주간업무보고 화면의 '시트에서 불러오기'를 누르면 이 내용이 채워집니다.
  *
  * 설치 (한 번만)
  *  1) script.google.com → 새 프로젝트 → 이 코드 전체를 붙여넣고 저장
  *  2) 왼쪽 톱니바퀴(프로젝트 설정) → 맨 아래 '스크립트 속성' → 속성 추가
- *       DASH_NAME     : 대시보드 로그인 이름 (예: 박예영)
- *       DASH_PASSWORD : 대시보드 로그인 비밀번호
+ *       SHEET_ID      : 주간업무보고 시트 ID (시트 주소의 /d/ 와 /edit 사이 글자)
+ *       SHEET_NAME    : 시트에서 찾을 내 이름 (A~D열에 적힌 그대로)
+ *       DASH_NAME     : 대시보드 로그인 이름
+ *       DASH_PASSWORD : 대시보드 로그인 비밀번호 (다른 곳에서 쓰지 않는 비밀번호)
+ *     ※ 시트 ID·이름·비밀번호는 이 코드에 직접 적지 마세요. 코드는 공개 저장소에 올라갑니다.
  *  3) 위쪽 함수 목록에서 setup 을 고르고 ▶실행 → 권한 허용
  *     (지금 한 번 보내고, 이후 1시간마다 자동으로 보내도록 예약합니다)
  *  시트를 고친 뒤 바로 반영하고 싶으면 sync 를 ▶실행하면 됩니다.
  */
-const SHEET_ID = '18J11mHW90HkDVFw6xv6npeoLgYf31FVa5FNBzvkPrgU';
-const NAME = '박예영';     // 시트에서 찾을 이름 (A~D열)
 const COL_REPORT = 5;      // E열
 const COL_PLAN = 6;        // F열
 const DAYS_BACK = 70;      // 최근 몇 일치 주만 보낼지
@@ -38,9 +39,11 @@ function sync() {
   const props = PropertiesService.getScriptProperties();
   const name = props.getProperty('DASH_NAME'), pw = props.getProperty('DASH_PASSWORD');
   if (!name || !pw) throw new Error("프로젝트 설정 > 스크립트 속성에 DASH_NAME, DASH_PASSWORD 를 넣어 주세요");
+  const sheetId = props.getProperty('SHEET_ID'), me = props.getProperty('SHEET_NAME') || name;
+  if (!sheetId) throw new Error("프로젝트 설정 > 스크립트 속성에 SHEET_ID 를 넣어 주세요");
   const auth = signIn(name, pw);
 
-  const weeks = readWeeks();
+  const weeks = readWeeks(sheetId, me);
   const since = Utilities.formatDate(new Date(Date.now() - DAYS_BACK * 864e5), 'Asia/Seoul', 'yyyy-MM-dd');
   let sent = 0, same = 0;
   weeks.filter(w => w.week >= since).forEach(w => {
@@ -55,8 +58,8 @@ function sync() {
 }
 
 /** 각 탭에서 보고 주(E열 머리글의 시작일)와 내 칸을 찾습니다 */
-function readWeeks() {
-  const ss = SpreadsheetApp.openById(SHEET_ID);
+function readWeeks(sheetId, me) {
+  const ss = SpreadsheetApp.openById(sheetId);
   const flat = s => String(s || '').replace(/\s+/g, '');
   const clean = s => String(s || '').replace(/\r\n?/g, '\n').replace(/\s+$/, '');
   const fileYear = (ss.getName().match(/20\d\d/) || [String(new Date().getFullYear())])[0];
@@ -76,7 +79,7 @@ function readWeeks() {
       if (y && !year) year = y[1];
     }
     if (!md) continue;
-    const row = rows.find(r => r.slice(0, 4).some(c => flat(c).includes(NAME)));
+    const row = rows.find(r => r.slice(0, 4).some(c => flat(c).includes(flat(me))));
     if (!row) continue;
     out.push({
       week: (year || fileYear) + '-' + pad(md[1]) + '-' + pad(md[2]),
@@ -102,7 +105,7 @@ function signIn(name, pw) {
     payload: JSON.stringify({ email: nameToEmail(name), password: pw, returnSecureToken: true })
   });
   const d = JSON.parse(res.getContentText() || '{}');
-  if (res.getResponseCode() !== 200) throw new Error('대시보드 로그인 실패: ' + ((d.error && d.error.message) || res.getResponseCode()) + ' / 시도한 이름 [' + name + '] (글자 수 ' + name.length + ', 비밀번호 ' + pw.length + '자) → ' + nameToEmail(name) + ' · 박예영이면 uebb095ec9888ec9881@work-dashboard.app 이어야 합니다');
+  if (res.getResponseCode() !== 200) throw new Error('대시보드 로그인 실패: ' + ((d.error && d.error.message) || res.getResponseCode()) + ' / 스크립트 속성의 DASH_NAME, DASH_PASSWORD 를 확인해 주세요');
   return { uid: d.localId, token: d.idToken };
 }
 
