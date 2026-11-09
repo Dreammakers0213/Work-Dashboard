@@ -717,7 +717,7 @@ function vReport(){
   return `<div class="head"><div><h1>${esc(mlabel("report"))}</h1><p>업무 보드와 정기 업무를 바탕으로 초안을 만듭니다. 고친 뒤 복사해서 주간업무보고 시트에 붙여 넣으세요.</p></div><a class="btn" href="#settings" data-stab="report">양식 설정</a></div>
   <div class="panel" style="margin-bottom:16px"><div class="weeknav" style="justify-content:space-between">
     <div class="weeknav"><button class="btn sm" data-wk="-1" aria-label="이전 주">←</button><b>${weekLabel(s)} 보고 · ${weekLabel(n)} 계획</b><button class="btn sm" data-wk="1" aria-label="다음 주">→</button>${S.wk!==0?`<button class="btn sm" data-wk="0">이번 주로</button>`:""}</div>
-    <div class="weeknav"><span class="saved">${saved?"저장됨 "+fmtTs(saved.savedAt):"저장 전 초안"}</span><button class="btn sm" data-act="regen">업무 기준으로 다시 채우기</button><button class="btn pri sm" data-act="saveReport">저장</button></div>
+    <div class="weeknav"><span class="saved">${saved?"저장됨 "+fmtTs(saved.savedAt):"저장 전 초안"}</span><button class="btn sm" data-act="loadSheet">시트에서 불러오기</button><button class="btn sm" data-act="regen">업무 기준으로 다시 채우기</button><button class="btn pri sm" data-act="saveReport">저장</button></div>
   </div></div>
   <div class="repgrid">
     <section class="panel"><div class="rh"><div><h2>업무 보고</h2><small>${weekLabel(s)} · ${rangeLabel(s)}</small></div><button class="btn sm" data-copy="rRep">복사</button></div><textarea id="rRep" data-wk="${S.wk}" aria-label="업무 보고">${esc(g.report)}</textarea></section>
@@ -796,6 +796,7 @@ function sReport(){
     <div class="opt"><b>항목 번호</b><div class="seg2">${["1)","가.","-","•"].map(v=>`<button type="button" data-rep="num" data-v="${v}" class="${R.num===v?"on":""}">${v}</button>`).join("")}</div></div>
     <div class="opt"><b>업무 보고에 진행 상태 붙이기</b><label class="toggle"><input type="checkbox" data-repcheck="showStatus" ${R.showStatus?"checked":""}> "- 완료", "- 진행중" 표시</label></div>
     <div class="opt"><b>정기 업무 포함</b><label class="toggle"><input type="checkbox" data-repcheck="routines" ${R.routines?"checked":""}> 정기 업무 체크 기록을 보고서에 넣기</label></div>
+    <div class="opt"><b>시트 연동 주소</b><small>주간업무보고 시트의 내 칸(업무 보고·업무 계획)을 불러오는 Apps Script 웹 앱 주소입니다. 주간업무보고 화면의 '시트에서 불러오기'에 쓰입니다.</small><input type="url" value="${esc(R.sheetUrl||"")}" data-reptext="sheetUrl" placeholder="https://script.google.com/macros/s/…/exec" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px" aria-label="시트 연동 주소"></div>
     <div class="opt"><b>마지막 칸 이름</b><small>비워 두면 넣지 않습니다.</small><input type="text" id="repExtra" value="${esc(R.extra)}" data-reptext="extra" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 10px" aria-label="마지막 칸 이름"></div>
   </section>
   <section class="panel"><header><h2>미리보기 (이번 주 업무 보고)</h2></header><pre style="white-space:pre-wrap;margin:0;font:inherit;font-size:13px;line-height:1.65;overflow-wrap:anywhere">${esc(genReport(0).report)}</pre>
@@ -1002,6 +1003,16 @@ document.addEventListener("click",async e=>{
     else if(k==="quickMore")taskDlg(null,$("#qProj").value,$("#qDue").value,{title:$("#qTitle").value.trim(),time:$("#qTime").value});
     else if(k==="newProject")projectDlg();else if(k==="editProject")projectDlg(proj(S.pid));else if(k==="addOutput")outputDlg(proj(S.pid));
     else if(k==="editRoutines")routinesDlg();else if(k==="editLinks")linksDlg();
+    else if(k==="loadSheet"){const url=(REP().sheetUrl||"").trim();
+      if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){toast("운영자 모드 > 보고 양식에서 '시트 연동 주소'를 먼저 넣어 주세요");return}
+      x.disabled=true;const wk=S.wk;
+      try{const r=await fetch(url+(url.includes("?")?"&":"?")+"week="+ymd(wkStart(wk)));const d=await r.json();
+        if(d.error)throw new Error((d.sheet?"["+d.sheet+"] ":"")+d.error);
+        if(S.view!=="report"||S.wk!==wk)return;
+        $("#rRep").value=d.report||"";$("#rPlan").value=d.plan||"";$("#rRep").dataset.dirty=$("#rPlan").dataset.dirty="1";
+        toast("'"+d.sheet+"' 시트에서 불러왔습니다. 저장해야 남습니다")}
+      catch(err){toast("불러오지 못했습니다: "+(err&&err.message||err))}
+      finally{x.disabled=false}}
     else if(k==="regen"){const r=genReport(S.wk);$("#rRep").value=r.report;$("#rPlan").value=r.plan;$("#rRep").dataset.dirty=$("#rPlan").dataset.dirty="1";toast("업무 보드 기준으로 다시 채웠습니다. 저장해야 남습니다")}
     else if(k==="saveReport"){try{await S.db.doc("reports/"+ymd(wkStart(S.wk))).set({report:$("#rRep").value,plan:$("#rPlan").value,savedAt:nowIso()});["rRep","rPlan"].forEach(id=>delete $("#"+id).dataset.dirty);toast("저장했습니다")}catch(err){fail(err)}}
     else if(k==="menuReset")await saveUI({menu:[]});
